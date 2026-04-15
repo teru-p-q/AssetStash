@@ -1,0 +1,20 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
+        <ui:Button text="お気に入り追加" name="Add" class="defaultCss" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
+        <ui:Button text="フォルダ作成" name="CreateGroup" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
+        <ui:Button text="リセット" name="Reset" style="width: 100px; white-space: nowrap; align-items: auto; align-self: auto; align-content: auto; justify-content: flex-start; flex-shrink: 1;" />
+    </ui:VisualElement>
+    <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
+        <ui:Toggle label="Path" name="Path" style="flex-direction: row-reverse; flex-shrink: 1; flex-grow: 0; background-position-x: center 0; background-position-y: center 0; min-width: 0; width: auto;" />
+        <ui:Toggle label="GUID" name="GUID" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
+        <ui:Toggle label="Memo" name="Memo" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
+    </ui:VisualElement>
+    <ui:MultiColumnTreeView name="StashTree" virtualization-method="DynamicHeight" fixed-item-height="1" auto-expand="true" reorderable="true">
+        <ui:Columns primary-column-name="Name" reorderable="false">
+            <ui:Column name="Name" title="Name" min-width="160px" sortable="false" cell-template="project://database/Packages/com.github.teru-p-q.assetstash/Editor/UXML/NameCellTemplate.uxml?fileID=9197481963319205126&amp;guid=d0fada699bbba2347b243adb47840012&amp;type=3#NameCellTemplate" />
+            <ui:Column name="Path" title="Path" min-width="160px" />
+            <ui:Column name="GUID" title="GUID" min-width="200px" />
+            <ui:Column name="Memo" title="Memo" min-width="300px" cell-template="project://database/Packages/com.github.teru-p-q.assetstash/Editor/UXML/MemoCellTemplate.uxml?fileID=9197481963319205126&amp;guid=97e430d03a768f04584b5de64a421912&amp;type=3#MemoCellTemplate" />
+        </ui:Columns>
+    </ui:MultiColumnTreeView>
+</ui:UXML>
