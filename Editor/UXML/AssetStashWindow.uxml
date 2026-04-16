@@ -1,4 +1,4 @@
-﻿<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
         <ui:Button text="お気に入り追加" name="Add" class="defaultCss" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
         <ui:Button text="フォルダ作成" name="CreateGroup" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
@@ -11,10 +11,10 @@
     </ui:VisualElement>
     <ui:MultiColumnTreeView name="StashTree" virtualization-method="DynamicHeight" fixed-item-height="1" auto-expand="true" reorderable="true">
         <ui:Columns primary-column-name="Name" reorderable="false">
-            <ui:Column name="Name" title="Name" min-width="160px" sortable="false" cell-template="./NameCellTemplate.uxml" />
+            <ui:Column name="Name" title="Name" min-width="160px" sortable="false" />
             <ui:Column name="Path" title="Path" min-width="160px" sortable="false" />
             <ui:Column name="GUID" title="GUID" min-width="200px" sortable="false" />
-            <ui:Column name="Memo" title="Memo" min-width="300px" sortable="false" cell-template="./MemoCellTemplate.uxml" />
+            <ui:Column name="Memo" title="Memo" min-width="300px" sortable="false" />
         </ui:Columns>
     </ui:MultiColumnTreeView>
 </ui:UXML>

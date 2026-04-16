@@ -21,6 +21,8 @@ namespace KuonLib.AssetStash.Properties
             this.toggle = toggle;
             this.IsVisible = isVisible;
 
+            var template = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Packages/com.github.teru-p-q.assetstash/Editor/UXML/MemoCellTemplate.uxml");
+            column.makeCell = () => template.Instantiate();
             column.bindCell = (e, i) =>
             {
                 var item = stashTree.GetItemDataForIndex(i);
