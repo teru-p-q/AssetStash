@@ -45,6 +45,11 @@ namespace KuonLib.AssetStash
             }
         }
 
+        public static void OpenFolder(AssetData data)
+        {
+            EditorUtility.RevealInFinder(data.Name);
+        }
+
         public static void SetDefaultToggleStyle(Toggle toggle)
         {
             toggle.labelElement.style.minWidth = 0;

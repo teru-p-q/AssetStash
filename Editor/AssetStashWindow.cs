@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -162,18 +163,64 @@ namespace KuonLib.AssetStash
                 }
             };
 
-            root.RegisterCallback<MouseDownEvent>(me =>
+            root.RegisterCallback<MouseUpEvent>(me =>
             {
                 if (me.button == (int)MouseButton.RightMouse)
                 {
-                    var memoItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);
+                    var selectedItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);
+                    stashTree.SetSelectionById(selectedItem.ID);
 
-                    var menu = new GenericMenu();
-                    menu.AddItem(new GUIContent("開く"), false, () => AssetStashUtil.OpenAsset(memoItem));
-                    menu.AddItem(new GUIContent("メモ編集"), false, () => stashTree.BeginMemoEdit(memoItem.ID));
-                    menu.AddItem(new GUIContent("削除"), false, () => Delete(memoItem));
-                    menu.AddItem(new GUIContent("アセットの場所"), false, () => AssetStashUtil.PingAsset(memoItem));
-                    menu.ShowAsContext();
+                    Vector2 mousePos = me.mousePosition;
+                    Rect menuRect = new Rect(mousePos, Vector2.zero);
+
+                    EditorApplication.delayCall += () =>
+                    {
+                        var menu = new GenericMenu();
+                        if (selectedItem == null)
+                        {
+                            return;
+                        }
+
+                        if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+                        {
+                            var path = AssetStashUtil.GuidToPath(selectedItem.Guid);
+                            if (!File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+                            {
+                                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
+                                menu.AddSeparator("");
+                            }
+                        }
+
+                        if (selectedItem.IsExternal)
+                        {
+                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の場所をエクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
+                            menu.AddSeparator("");
+                        }
+
+                        if (selectedItem.IsGroup)
+                        {
+                            menu.AddItem(new GUIContent("グループ名を編集"), false, () => stashTree.BeginNameEdit(selectedItem.ID));
+                        }
+                        menu.AddItem(new GUIContent("メモを編集"), false, () => stashTree.BeginMemoEdit(selectedItem.ID));
+                        menu.AddSeparator("");
+
+                        if (selectedItem.IsGroup)
+                        {
+                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を削除"), false, () => Delete(selectedItem));
+                        }
+                        else
+                        {
+                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の登録を解除"), false, () => Delete(selectedItem));
+                        }
+
+                        if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+                        {
+                            menu.AddSeparator("");
+                            menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
+                        }
+
+                        menu.DropDown(menuRect);
+                    };
                 }
             });
 
