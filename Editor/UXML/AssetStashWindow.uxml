@@ -1,7 +1,7 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
         <ui:Button text="お気に入り追加" name="Add" class="defaultCss" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
-        <ui:Button text="フォルダ作成" name="CreateGroup" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
+        <ui:Button text="グループ作成" name="CreateGroup" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
         <ui:Button text="リセット" name="Reset" style="width: 100px; white-space: nowrap; align-items: auto; align-self: auto; align-content: auto; justify-content: flex-start; flex-shrink: 1;" />
     </ui:VisualElement>
     <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
