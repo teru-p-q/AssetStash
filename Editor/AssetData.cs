@@ -16,6 +16,7 @@ namespace KuonLib.AssetStash
         [SerializeField] public bool IsExpanded;
 
         public bool IsGroup => Type == "Group";
+        public bool IsExternal => Type == "External";
 
         public object Clone()
         {

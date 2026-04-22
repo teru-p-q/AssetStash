@@ -1,5 +1,4 @@
-﻿using Unity.VisualScripting.YamlDotNet.Core;
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace KuonLib.AssetStash.Properties
 {
@@ -25,7 +24,7 @@ namespace KuonLib.AssetStash.Properties
                 {
                     return;
                 }
-                if (item.Type == "external")
+                if (item.IsExternal)
                 {
                     e.Q<Label>().text = item.Name;
                 }

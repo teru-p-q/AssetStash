@@ -121,7 +121,7 @@ namespace KuonLib.AssetStash.Properties
                     if (nameLabel != null)
                     {
                         nameLabel.style.display = DisplayStyle.Flex;
-                        nameLabel.text = item.Type == "external" ? Path.GetFileName(item.Name) : item.Name;
+                        nameLabel.text = item.IsExternal ? Path.GetFileName(item.Name) : item.Name;
 
                         nameLabel.RegisterCallback<MouseDownEvent>(me =>
                         {

@@ -73,7 +73,7 @@ namespace KuonLib.AssetStash
                     ID = newID,
                     Name = path,
                     Memo = "",
-                    Type = "external",
+                    Type = "External",
                     ParentID = -1,
                     IsExpanded = false,
                 };
