@@ -163,8 +163,20 @@ namespace KuonLib.AssetStash
                 }
             };
 
+            root.RegisterCallback<ClickEvent>(me =>
+            {
+                if (me.clickCount == 2)
+                {
+                    me.StopImmediatePropagation();
+                    var selectedItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);
+                    AssetStashUtil.OpenAsset(selectedItem);
+                    return;
+                }
+            });
+
             root.RegisterCallback<MouseUpEvent>(me =>
             {
+                
                 if (me.button == (int)MouseButton.RightMouse)
                 {
                     var selectedItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);

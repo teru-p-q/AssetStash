@@ -122,24 +122,6 @@ namespace KuonLib.AssetStash.Properties
                     {
                         nameLabel.style.display = DisplayStyle.Flex;
                         nameLabel.text = item.IsExternal ? Path.GetFileName(item.Name) : item.Name;
-
-                        nameLabel.RegisterCallback<MouseDownEvent>(me =>
-                        {
-                            if (me.clickCount == 2)
-                            {
-                                me.StopImmediatePropagation();
-
-                                if (item.IsGroup)
-                                {
-                                    BeginEdit(item.ID);
-                                }
-                                else
-                                {
-                                    AssetStashUtil.OpenAsset(item);
-                                }
-                                return;
-                            }
-                        });
                     }
                 }
             };

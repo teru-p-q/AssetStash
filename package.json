@@ -1,11 +1,11 @@
 ﻿{
   "name": "com.github.teru-p-q.assetstash",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "displayName": "Asset Stash",
   "description": "A productivity tool that allows you to bookmark and quickly access frequently used assets, folders, and scene objects.",
   "unity": "6000.1",
   "_upm": {
-    "changelog": "- Improved context menu behavior"
+    "changelog": "- Resolved an issue where an incorrect file was opened upon double-clicking."
   },
   "author": {
     "name": "teru-p-q",
