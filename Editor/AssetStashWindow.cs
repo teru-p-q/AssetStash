@@ -176,7 +176,6 @@ namespace KuonLib.AssetStash
 
             root.RegisterCallback<MouseUpEvent>(me =>
             {
-                
                 if (me.button == (int)MouseButton.RightMouse)
                 {
                     var selectedItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);
@@ -312,7 +311,7 @@ namespace KuonLib.AssetStash
         #region DnD
         StartDragArgs SetupDragAndDrop(SetupDragAndDropArgs args, int[] draggedIds)
         {
-            var objectRefs = new List<UnityEngine.Object>();
+            var objectRefs = new List<Object>();
             var paths = new List<string>();
 
             if (draggedIds == null || draggedIds.Length == 0 || assetsCache == null)
@@ -331,7 +330,7 @@ namespace KuonLib.AssetStash
                 {
                     var cls = mono.GetClass();
 
-                    if (cls != null && typeof(UnityEngine.MonoBehaviour).IsAssignableFrom(cls))
+                    if (cls != null && typeof(MonoBehaviour).IsAssignableFrom(cls))
                     {
                         objectRefs.Add(mono);
                     }
@@ -356,22 +355,18 @@ namespace KuonLib.AssetStash
                 paths.Add(path);
             }
 
-            // Set the payload
             DragAndDrop.objectReferences = objectRefs.ToArray();
             DragAndDrop.paths = paths.ToArray();
             DragAndDrop.SetGenericData("PendingDataID", draggedIds[0]);
 
-            // Cache the payload for DragAndDropUpdate to use
             cachedDragObjects = objectRefs.ToArray();
             cachedDragPaths = paths.ToArray();
 
-            // Return Copy mode - UIElements will handle the visual feedback
             return new StartDragArgs("Dragging Assets", DragVisualMode.Copy);
         }
 
         DragVisualMode DragAndDropUpdate(HandleDragAndDropArgs args, int[] draggedIds)
         {
-            // Restore cached payload since UIElements/DragAndDrop API clears it
             if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
             {
                 DragAndDrop.objectReferences = cachedDragObjects;
@@ -387,11 +382,19 @@ namespace KuonLib.AssetStash
                 return DragVisualMode.Rejected;
             }
 
-            int targetParent = args.parentId; // -1 = root
-                                              // 例: 自分自身や自分の子にドロップしようとしていないかチェック
-            if (!hasExternal && dragged != null && dragged.Any(id => id == targetParent)) // || IsDescendant(id, targetParent)))
+            int targetParent = args.parentId;
+            if (!hasExternal && dragged != null && dragged.Any(id => id == targetParent))
             {
                 return DragVisualMode.Rejected;
+            }
+
+            if (!hasExternal)
+            {
+                var f = assetsCache.Find(x => x.ID == dragged[0]);
+                if (f != null && f.IsGroup && targetParent != -1)
+                {
+                    return DragVisualMode.Rejected;
+                }
             }
 
             return DragVisualMode.Copy;
@@ -399,7 +402,6 @@ namespace KuonLib.AssetStash
 
         DragVisualMode HandleDrop(HandleDragAndDropArgs args, int[] draggedIds)
         {
-            // Restore cached payload since UIElements/DragAndDrop API clears it
             if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
             {
                 DragAndDrop.objectReferences = cachedDragObjects;
@@ -423,7 +425,6 @@ namespace KuonLib.AssetStash
             }
             pendingDraggedIds = null;
 
-            // Clear the cache after drop
             cachedDragObjects = new UnityEngine.Object[0];
             cachedDragPaths = new string[0];
 
@@ -475,7 +476,25 @@ namespace KuonLib.AssetStash
                     var dragItem = assetsCache.First(x => x.ID == dragged[0]);
                     dragItem.ParentID = -1;
                     assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
-                    assetsCache.Remove(dragItem);
+
+                    if (dragItem.IsGroup)
+                    {
+                        var childItems = assetsCache.Where(x => x.ParentID == dragItem.ID).ToArray();
+                        for (var i = 0; i < childItems.Length; i++)
+                        {
+                            assetsCache.Insert(insertIndex + i + 1, childItems[i]);
+                        }
+
+                        assetsCache.Remove(dragItem);
+                        foreach (var i in childItems)
+                        {
+                            assetsCache.Remove(i);
+                        }
+                    }
+                    else
+                    {
+                        assetsCache.Remove(dragItem);
+                    }
                     refreshItem = null;
                 }
             }
