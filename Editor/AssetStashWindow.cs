@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -15,7 +16,7 @@ namespace KuonLib.AssetStash
         int CurrentID = 0;
         List<AssetData> assetsCache;
 
-        Object[] cachedDragObjects = new Object[0];
+        UnityEngine.Object[] cachedDragObjects = new UnityEngine.Object[0];
         string[] cachedDragPaths = new string[0];
         bool isPathEnabled;
         bool isGUIDEnabled;
@@ -311,7 +312,7 @@ namespace KuonLib.AssetStash
         #region DnD
         StartDragArgs SetupDragAndDrop(SetupDragAndDropArgs args, int[] draggedIds)
         {
-            var objectRefs = new List<Object>();
+            var objectRefs = new List<UnityEngine.Object>();
             var paths = new List<string>();
 
             if (draggedIds == null || draggedIds.Length == 0 || assetsCache == null)
@@ -533,17 +534,27 @@ namespace KuonLib.AssetStash
                     else
                     {
                         dragItem.ParentID = parent.ParentID;
-                        assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
+                        assetsCache.Insert(insertIndex + 1, (AssetData)dragItem.Clone());
                         refreshItem = dragItem;
                     }
                 }
-                else if (args.target == null)
+                else
                 {
                     if (args.parentId != -1)
                     {
                         var parentItem = assetsCache.First(x => x.ID == args.parentId);
                         dragItem.ParentID = args.parentId;
-                        assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
+
+                        if (args.dropPosition == DragAndDropPosition.OutsideItems)
+                        {
+                            var parentIndex = assetsCache.FindIndex(x => x.ID == parentItem.ID);
+                            var parentVisibleIndex = assetsCache.FindVisibleIndexUntil(x => x.ID == parentItem.ID);
+                            assetsCache.Insert(parentIndex + insertIndex - parentVisibleIndex, (AssetData)dragItem.Clone());
+                        }
+                        else
+                        {
+                            assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
+                        }
                         refreshItem = null;
                     }
                     else
@@ -559,5 +570,63 @@ namespace KuonLib.AssetStash
         }
         #endregion
 
+    }
+
+    static class ListAssetDataExtensions
+    {
+        public static int FindVisibleIndexUntil(this List<AssetData> list, Func<AssetData, bool> predicate)
+        {
+            var visibleIndex = 0;
+            var count = list.Count;
+
+            for (var i = 0; i < count; i++)
+            {
+                var item = list[i];
+
+                if (predicate(item))
+                {
+                    break;
+                }
+
+                if (item.IsGroup)
+                {
+                    var childCount = CountVisibleChildrenUntil(list, i + 1, predicate);
+
+                    if (!item.IsExpanded)
+                    {
+                        i += childCount;
+                    }
+                }
+                visibleIndex++;
+            }
+
+            return visibleIndex;
+
+            static int CountVisibleChildrenUntil(List<AssetData> list, int startIndex, Func<AssetData, bool> predicate)
+            {
+                var count = 0;
+                var listCount = list.Count;
+                var prentID = list[startIndex].ParentID;
+
+                for (var i = startIndex; i < listCount; i++)
+                {
+                    var item = list[i];
+
+                    if (item.IsGroup || prentID != item.ParentID)
+                    {
+                        break;
+                    }
+
+                    if (predicate(item))
+                    {
+                        break;
+                    }
+
+                    count++;
+                }
+
+                return count;
+            }
+        }
     }
 }
