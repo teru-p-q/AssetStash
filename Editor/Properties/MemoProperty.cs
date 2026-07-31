@@ -1,5 +1,4 @@
-﻿using System;
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -7,19 +6,15 @@ namespace KuonLib.AssetStash.Properties
 {
     public class MemoProperty : StashProperty
     {
-        AssetStashTree stashTree;
         int editId = -1;
 
-        public MemoProperty(AssetStashTree tree)
-        {
-            stashTree = tree;
-        }
+        public MemoProperty(AssetStashTree tree) : base(tree) { }
+
+        Label FindLabelField(VisualElement ve) => ve.Query<Label>("Memo");
 
         public override void Create(Column column, Toggle toggle, bool isVisible)
         {
-            this.column = column;
-            this.toggle = toggle;
-            this.IsVisible = isVisible;
+            SetupColumn(column, toggle, isVisible);
 
             var template = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Packages/com.github.teru-p-q.assetstash/Editor/UXML/MemoCellTemplate.uxml");
             column.makeCell = () => template.Instantiate();
@@ -31,7 +26,7 @@ namespace KuonLib.AssetStash.Properties
                     return;
                 }
 
-                var label = stashTree.FindLabelField(e);
+                var label = FindLabelField(e);
 
                 // 既に TextField がある場合は先に消す（再利用時のクリーン）
                 var existingTf = stashTree.FindTextField(e);
@@ -60,25 +55,7 @@ namespace KuonLib.AssetStash.Properties
                     // 必要なら背景やフォントも明示
                     element.style.unityTextAlign = TextAnchor.UpperLeft;
 
-                    tf.RegisterCallback<KeyDownEvent>(
-                        ke =>
-                        {
-                            if (ke.keyCode == KeyCode.Return || ke.keyCode == KeyCode.KeypadEnter)
-                            {
-                                EndEdit(tf, item, tf.value);
-                                ke.StopImmediatePropagation();
-                            }
-                            else if (ke.keyCode == KeyCode.Escape)
-                            {
-                                CancelEdit(tf);
-                                ke.StopImmediatePropagation();
-                            }
-                        });
-
-                    tf.RegisterCallback<FocusOutEvent>(fe =>
-                    {
-                        EndEdit(tf, item, tf.value);
-                    });
+                    RegisterInlineEditKeys(tf, () => EndEdit(tf, item, tf.value), () => CancelEdit(tf));
                 }
                 else
                 {
@@ -114,23 +91,9 @@ namespace KuonLib.AssetStash.Properties
                     }
                 }
             };
-
-            toggle.RegisterValueChangedCallback(evt =>
-            {
-                IsVisible = evt.newValue;
-            });
-            AssetStashUtil.SetDefaultToggleStyle(toggle);
         }
 
-        public override void BeginEdit(int id)
-        {
-            editId = id;
-            if (stashTree != null)
-            {
-                stashTree.Rebuild();
-                stashTree.MarkDirtyRepaint();
-            }
-        }
+        public override void BeginEdit(int id) => BeginInlineEdit(ref editId, id);
 
         public override void EndEdit(VisualElement e, AssetData item, string newMemo)
         {
@@ -142,62 +105,29 @@ namespace KuonLib.AssetStash.Properties
             item.Memo = newMemo;
             editId = -1;
 
-            if (stashTree == null)
+            FinishInlineEdit(e, parent =>
             {
-                return;
-            }
-
-            try
-            {
-                var tf = stashTree.FindTextField(e);
-                var parent = tf.parent;
-                if (parent != null)
+                var memoLabel = FindLabelField(parent);
+                if (memoLabel != null)
                 {
-                    var memoLabel = stashTree.FindLabelField(parent);
-                    if (memoLabel != null)
-                    {
-                        memoLabel.text = newMemo;
-                        memoLabel.style.display = DisplayStyle.Flex;
-                    }
+                    memoLabel.text = newMemo;
+                    memoLabel.style.display = DisplayStyle.Flex;
                 }
-                tf.RemoveFromHierarchy();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
-
-            stashTree.MarkDirtyRepaint();
-            stashTree.Focus();
+            });
         }
 
         public override void CancelEdit(VisualElement e)
         {
             editId = -1;
-            if (stashTree != null)
-            {
-                try
-                {
-                    var tf = stashTree.FindTextField(e);
-                    var parent = tf.parent;
-                    if (parent != null)
-                    {
-                        var memoLabel = stashTree.FindLabelField(parent);
-                        if (memoLabel != null)
-                        {
-                            memoLabel.style.display = DisplayStyle.Flex;
-                        }
-                    }
-                    tf.RemoveFromHierarchy();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
 
-                stashTree.MarkDirtyRepaint();
-                stashTree.Focus();
-            }
+            FinishInlineEdit(e, parent =>
+            {
+                var memoLabel = FindLabelField(parent);
+                if (memoLabel != null)
+                {
+                    memoLabel.style.display = DisplayStyle.Flex;
+                }
+            });
         }
     }
 }

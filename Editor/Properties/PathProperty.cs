@@ -4,18 +4,11 @@ namespace KuonLib.AssetStash.Properties
 {
     public class PathProperty : StashProperty
     {
-        AssetStashTree stashTree;
-
-        public PathProperty(AssetStashTree tree)
-        {
-            stashTree = tree;
-        }
+        public PathProperty(AssetStashTree tree) : base(tree) { }
 
         public override void Create(Column column, Toggle toggle, bool isVisible)
         {
-            this.column = column;
-            this.toggle = toggle;
-            IsVisible = isVisible;
+            SetupColumn(column, toggle, isVisible);
 
             column.bindCell = (e, i) =>
             {
@@ -24,21 +17,8 @@ namespace KuonLib.AssetStash.Properties
                 {
                     return;
                 }
-                if (item.IsExternal)
-                {
-                    e.Q<Label>().text = item.Name;
-                }
-                else
-                {
-                    e.Q<Label>().text = AssetStashUtil.GuidToPath(item.Guid);
-                }
+                e.Q<Label>().text = item.IsExternal ? item.Name : AssetStashUtil.GuidToPath(item.Guid);
             };
-
-            toggle.RegisterValueChangedCallback(evt =>
-            {
-                IsVisible = evt.newValue;
-            });
-            AssetStashUtil.SetDefaultToggleStyle(toggle);
         }
     }
 }

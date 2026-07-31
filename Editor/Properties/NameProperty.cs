@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -8,13 +7,9 @@ namespace KuonLib.AssetStash.Properties
 {
     public class NameProperty : StashProperty
     {
-        AssetStashTree stashTree;
         int editId = -1;
 
-        public NameProperty(AssetStashTree tree)
-        {
-            stashTree = tree;
-        }
+        public NameProperty(AssetStashTree tree) : base(tree) { }
 
         void SetNameIcon(VisualElement e, AssetData item)
         {
@@ -48,7 +43,6 @@ namespace KuonLib.AssetStash.Properties
             }
         }
 
-        TextField FindTextField(VisualElement ve) => ve.Query<TextField>("InlineEdit");
         Label FindLabelField(VisualElement ve) => ve.Query<Label>("Name");
         Image FindIconField(VisualElement ve) => ve.Query<Image>("Icon");
 
@@ -57,10 +51,8 @@ namespace KuonLib.AssetStash.Properties
 
         public override void Create(Column column, Toggle toggle, bool isVisible)
         {
-            this.column = column;
-            this.toggle = toggle;
-            IsVisible = isVisible;
-            
+            SetupColumn(column, toggle, isVisible);
+
             var template = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Packages/com.github.teru-p-q.assetstash/Editor/UXML/NameCellTemplate.uxml");
             column.makeCell = () => template.Instantiate();
             column.bindCell = (e, i) =>
@@ -77,7 +69,7 @@ namespace KuonLib.AssetStash.Properties
                 var nameLabel = FindLabelField(e);
 
                 // 既に TextField がある場合は先に消す（再利用時のクリーン）
-                var existingTf = FindTextField(e);
+                var existingTf = stashTree.FindTextField(e);
                 if (existingTf != null)
                 {
                     existingTf.RemoveFromHierarchy();
@@ -97,24 +89,7 @@ namespace KuonLib.AssetStash.Properties
                     e.Add(tf);
                     tf.Q(TextField.textInputUssName)?.Focus();
 
-                    tf.RegisterCallback<KeyDownEvent>(
-                        ke => {
-                            if (ke.keyCode == KeyCode.Return || ke.keyCode == KeyCode.KeypadEnter)
-                            {
-                                EndEdit(tf, item, tf.value);
-                                ke.StopImmediatePropagation();
-                            }
-                            else if (ke.keyCode == KeyCode.Escape)
-                            {
-                                CancelEdit(tf);
-                                ke.StopImmediatePropagation();
-                            }
-                        });
-
-                    tf.RegisterCallback<FocusOutEvent>(fe =>
-                    {
-                        EndEdit(tf, item, tf.value);
-                    });
+                    RegisterInlineEditKeys(tf, () => EndEdit(tf, item, tf.value), () => CancelEdit(tf));
                 }
                 else
                 {
@@ -127,15 +102,7 @@ namespace KuonLib.AssetStash.Properties
             };
         }
 
-        public override void BeginEdit(int id)
-        {
-            editId = id;
-            if (stashTree != null)
-            {
-                stashTree.Rebuild();
-                stashTree.MarkDirtyRepaint();
-            }
-        }
+        public override void BeginEdit(int id) => BeginInlineEdit(ref editId, id);
 
         public override void EndEdit(VisualElement e, AssetData item, string newText)
         {
@@ -147,80 +114,47 @@ namespace KuonLib.AssetStash.Properties
             item.Name = newText;
             editId = -1;
 
-            if (stashTree == null)
+            FinishInlineEdit(e, parent =>
             {
-                return;
-            }
-
-            try
-            {
-                var tf = stashTree.FindTextField(e);
-                var parent = tf.parent;
-                if (parent != null)
+                var nameLabel = FindLabelField(parent);
+                if (nameLabel != null)
                 {
-                    var nameLabel = FindLabelField(parent);
-                    if (nameLabel != null)
-                    {
-                        nameLabel.text = newText;
-                        nameLabel.style.display = DisplayStyle.Flex;
-                    }
-
-                    var iconRest = FindIconField(parent);
-                    if (iconRest != null)
-                    {
-                        Texture2D tex = null;
-                        if (!string.IsNullOrEmpty(item.Guid))
-                        {
-                            tex = AssetDatabase.GetCachedIcon(AssetStashUtil.GuidToPath(item.Guid)) as Texture2D;
-                        }
-
-                        if (tex == null)
-                        {
-                            var folderIcon = GetFolderIcon();
-                            tex = folderIcon.image as Texture2D;
-                        }
-                        iconRest.image = tex;
-                        iconRest.style.display = DisplayStyle.Flex;
-                    }
+                    nameLabel.text = newText;
+                    nameLabel.style.display = DisplayStyle.Flex;
                 }
-                tf.RemoveFromHierarchy();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
 
-            stashTree.MarkDirtyRepaint();
-            stashTree.Focus();
+                var iconRest = FindIconField(parent);
+                if (iconRest != null)
+                {
+                    Texture2D tex = null;
+                    if (!string.IsNullOrEmpty(item.Guid))
+                    {
+                        tex = AssetDatabase.GetCachedIcon(AssetStashUtil.GuidToPath(item.Guid)) as Texture2D;
+                    }
+
+                    if (tex == null)
+                    {
+                        var folderIcon = GetFolderIcon();
+                        tex = folderIcon.image as Texture2D;
+                    }
+                    iconRest.image = tex;
+                    iconRest.style.display = DisplayStyle.Flex;
+                }
+            });
         }
 
         public override void CancelEdit(VisualElement e)
         {
             editId = -1;
-            if (stashTree != null)
-            {
-                try
-                {
-                    var tf = stashTree.FindTextField(e);
-                    var parent = tf.parent;
-                    if (parent != null)
-                    {
-                        var nameLabel = FindLabelField(parent);
-                        if (nameLabel != null)
-                        {
-                            nameLabel.style.display = DisplayStyle.Flex;
-                        }
-                    }
-                    tf.RemoveFromHierarchy();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogException(ex);
-                }
 
-                stashTree.MarkDirtyRepaint();
-                stashTree.Focus();
-            }
+            FinishInlineEdit(e, parent =>
+            {
+                var nameLabel = FindLabelField(parent);
+                if (nameLabel != null)
+                {
+                    nameLabel.style.display = DisplayStyle.Flex;
+                }
+            });
         }
     }
 }

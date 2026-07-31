@@ -4,18 +4,11 @@ namespace KuonLib.AssetStash.Properties
 {
     public class GUIDProperty : StashProperty
     {
-        readonly AssetStashTree stashTree;
-
-        public GUIDProperty(AssetStashTree tree)
-        {
-            stashTree = tree;
-        }
+        public GUIDProperty(AssetStashTree tree) : base(tree) { }
 
         public override void Create(Column column, Toggle toggle, bool isVisible)
         {
-            this.column = column;
-            this.toggle = toggle;
-            IsVisible = isVisible;
+            SetupColumn(column, toggle, isVisible);
 
             column.bindCell = (e, i) =>
             {
@@ -24,15 +17,8 @@ namespace KuonLib.AssetStash.Properties
                 {
                     return;
                 }
-                e.Q<Label>().text = item.Guid.ToString();
+                e.Q<Label>().text = item.Guid;
             };
-
-            toggle.RegisterValueChangedCallback(evt =>
-            {
-                IsVisible = evt.newValue;
-            });
-
-            AssetStashUtil.SetDefaultToggleStyle(toggle);
         }
     }
 }

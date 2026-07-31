@@ -94,7 +94,7 @@ namespace KuonLib.AssetStash
                 ID = CurrentID,
                 Name = "New Group",
                 Memo = "",
-                Type = "Group",
+                Type = AssetData.GroupType,
                 ParentID = -1,
                 IsExpanded = false,
             };
@@ -124,22 +124,46 @@ namespace KuonLib.AssetStash
         public void CreateBookmarkGUI()
         {
             var root = rootVisualElement;
+            var uxmlRoot = InstantiateWindowLayout(root);
 
+            SetupToolbarButtons(uxmlRoot);
+            SetupStashTree(uxmlRoot);
+            SetupDragAndDropHandlers();
+            SetupTreeChangeHandlers();
+            SetupDoubleClickToOpen(root);
+            SetupContextMenu(root);
+            SetupKeyboardShortcuts(root);
+
+            Reload();
+        }
+
+        VisualElement InstantiateWindowLayout(VisualElement root)
+        {
             var vitualTreeAsset = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Packages/com.github.teru-p-q.assetstash/Editor/UXML/AssetStashWindow.uxml");
             var uxmlRoot = vitualTreeAsset.Instantiate();
             root.Add(uxmlRoot);
             uxmlRoot.style.flexGrow = 1;
+            return uxmlRoot;
+        }
 
+        void SetupToolbarButtons(VisualElement uxmlRoot)
+        {
             uxmlRoot.Q<Button>("Add").clicked += OnAddButton;
             uxmlRoot.Q<Button>("CreateGroup").clicked += OnCreateGroupButton;
             uxmlRoot.Q<Button>("Reset").clicked += OnResetButton;
+        }
 
-            stashTree = new (uxmlRoot.Q<MultiColumnTreeView>("StashTree"),
+        void SetupStashTree(VisualElement uxmlRoot)
+        {
+            stashTree = new(uxmlRoot.Q<MultiColumnTreeView>("StashTree"),
                 uxmlRoot.Q<Toggle>("Path"),
                 uxmlRoot.Q<Toggle>("GUID"),
                 uxmlRoot.Q<Toggle>("Memo"));
             stashTree.SetTreeItems(treeItems);
+        }
 
+        void SetupDragAndDropHandlers()
+        {
             stashTree.CanStartDrag += (args) => true;
             stashTree.SetupDragAndDrop += args =>
             {
@@ -148,7 +172,10 @@ namespace KuonLib.AssetStash
             };
             stashTree.DragAndDropUpdate += args => DragAndDropUpdate(args, pendingDraggedIds);
             stashTree.HandleDrop += args => HandleDrop(args, pendingDraggedIds);
+        }
 
+        void SetupTreeChangeHandlers()
+        {
             stashTree.ItemExpandedChanged += (item) =>
             {
                 var i = assetsCache.First(x => x.ID == item.id);
@@ -163,7 +190,10 @@ namespace KuonLib.AssetStash
                     SaveStash(assetsCache);
                 }
             };
+        }
 
+        void SetupDoubleClickToOpen(VisualElement root)
+        {
             root.RegisterCallback<ClickEvent>(me =>
             {
                 if (me.clickCount == 2)
@@ -174,7 +204,10 @@ namespace KuonLib.AssetStash
                     return;
                 }
             });
+        }
 
+        void SetupContextMenu(VisualElement root)
+        {
             root.RegisterCallback<MouseUpEvent>(me =>
             {
                 if (me.button == (int)MouseButton.RightMouse)
@@ -185,57 +218,62 @@ namespace KuonLib.AssetStash
                     Vector2 mousePos = me.mousePosition;
                     Rect menuRect = new Rect(mousePos, Vector2.zero);
 
-                    EditorApplication.delayCall += () =>
-                    {
-                        var menu = new GenericMenu();
-                        if (selectedItem == null)
-                        {
-                            return;
-                        }
-
-                        if (!selectedItem.IsGroup && !selectedItem.IsExternal)
-                        {
-                            var path = AssetStashUtil.GuidToPath(selectedItem.Guid);
-                            if (!File.GetAttributes(path).HasFlag(FileAttributes.Directory))
-                            {
-                                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
-                                menu.AddSeparator("");
-                            }
-                        }
-
-                        if (selectedItem.IsExternal)
-                        {
-                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の場所をエクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
-                            menu.AddSeparator("");
-                        }
-
-                        if (selectedItem.IsGroup)
-                        {
-                            menu.AddItem(new GUIContent("グループ名を編集"), false, () => stashTree.BeginNameEdit(selectedItem.ID));
-                        }
-                        menu.AddItem(new GUIContent("メモを編集"), false, () => stashTree.BeginMemoEdit(selectedItem.ID));
-                        menu.AddSeparator("");
-
-                        if (selectedItem.IsGroup)
-                        {
-                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を削除"), false, () => Delete(selectedItem));
-                        }
-                        else
-                        {
-                            menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の登録を解除"), false, () => Delete(selectedItem));
-                        }
-
-                        if (!selectedItem.IsGroup && !selectedItem.IsExternal)
-                        {
-                            menu.AddSeparator("");
-                            menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
-                        }
-
-                        menu.DropDown(menuRect);
-                    };
+                    EditorApplication.delayCall += () => ShowContextMenu(selectedItem, menuRect);
                 }
             });
+        }
 
+        void ShowContextMenu(AssetData selectedItem, Rect menuRect)
+        {
+            var menu = new GenericMenu();
+            if (selectedItem == null)
+            {
+                return;
+            }
+
+            if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+            {
+                var path = AssetStashUtil.GuidToPath(selectedItem.Guid);
+                if (!File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+                {
+                    menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
+                    menu.AddSeparator("");
+                }
+            }
+
+            if (selectedItem.IsExternal)
+            {
+                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の場所をエクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
+                menu.AddSeparator("");
+            }
+
+            if (selectedItem.IsGroup)
+            {
+                menu.AddItem(new GUIContent("グループ名を編集"), false, () => stashTree.BeginNameEdit(selectedItem.ID));
+            }
+            menu.AddItem(new GUIContent("メモを編集"), false, () => stashTree.BeginMemoEdit(selectedItem.ID));
+            menu.AddSeparator("");
+
+            if (selectedItem.IsGroup)
+            {
+                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を削除"), false, () => Delete(selectedItem));
+            }
+            else
+            {
+                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の登録を解除"), false, () => Delete(selectedItem));
+            }
+
+            if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+            {
+                menu.AddSeparator("");
+                menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
+            }
+
+            menu.DropDown(menuRect);
+        }
+
+        void SetupKeyboardShortcuts(VisualElement root)
+        {
             root.RegisterCallback<KeyDownEvent>(x =>
             {
                 if (x.keyCode == KeyCode.F2)
@@ -257,9 +295,6 @@ namespace KuonLib.AssetStash
                     }
                 }
             });
-
-
-            Reload();
         }
 
         List<TreeViewItemData<AssetData>> BuildList(List<AssetData> assets)
@@ -447,7 +482,6 @@ namespace KuonLib.AssetStash
 
                 if (parent.IsGroup)
                 {
-                    var parentItem = assetsCache.First(x => x.ID == parent.ID);
                     assetsCache.Remove(dragItem);
                     dragItem.ParentID = parent.ID;
                     assetsCache.Add(dragItem);
@@ -465,7 +499,6 @@ namespace KuonLib.AssetStash
             {
                 if (args.parentId != -1)
                 {
-                    var parentItem = assetsCache.First(x => x.ID == args.parentId);
                     var dragItem = assetsCache.First(x => x.ID == dragged[0]);
                     dragItem.ParentID = args.parentId;
                     assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
@@ -526,7 +559,6 @@ namespace KuonLib.AssetStash
 
                     if (parent.IsGroup)
                     {
-                        var parentItem = assetsCache.First(x => x.ID == parent.ID);
                         dragItem.ParentID = parent.ID;
                         assetsCache.Add(dragItem);
                         refreshItem = dragItem;

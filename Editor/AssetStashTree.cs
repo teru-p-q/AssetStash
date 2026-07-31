@@ -63,27 +63,27 @@ namespace KuonLib.AssetStash
 
             NameProperty = new(this);
             NameProperty.Create(NameColumn, null, true);
-            NameProperty.OnChanged += x => VisibleChanged(x);
+            NameProperty.OnChanged += VisibleChanged;
 
             PathProperty = new(this);
             PathProperty.Create(PathColumn, path, true);
-            PathProperty.OnChanged += x => VisibleChanged(x);
+            PathProperty.OnChanged += VisibleChanged;
 
             GuidProperty = new(this);
             GuidProperty.Create(GuidColumn, guid, true);
-            GuidProperty.OnChanged += x => VisibleChanged(x);
+            GuidProperty.OnChanged += VisibleChanged;
 
-            MemoProperty = new(this); 
+            MemoProperty = new(this);
             MemoProperty.Create(MemoColumn, memo, true);
-            MemoProperty.OnChanged += x => VisibleChanged(x);
+            MemoProperty.OnChanged += VisibleChanged;
         }
 
         public void Dispose()
         {
-            NameProperty.OnChanged -= x => VisibleChanged(x);
-            PathProperty.OnChanged -= x => VisibleChanged(x);
-            GuidProperty.OnChanged -= x => VisibleChanged(x);
-            MemoProperty.OnChanged -= x => VisibleChanged(x);
+            NameProperty.OnChanged -= VisibleChanged;
+            PathProperty.OnChanged -= VisibleChanged;
+            GuidProperty.OnChanged -= VisibleChanged;
+            MemoProperty.OnChanged -= VisibleChanged;
         }
 
         void VisibleChanged(bool newValue)
@@ -133,6 +133,5 @@ namespace KuonLib.AssetStash
         public void SetSelectionById(int id) => treeView.SetSelectionById(id);
 
         public TextField FindTextField(VisualElement ve) => ve.Query<TextField>("InlineEdit");
-        public Label FindLabelField(VisualElement ve) => ve.Query<Label>("Memo");
     }
 }
