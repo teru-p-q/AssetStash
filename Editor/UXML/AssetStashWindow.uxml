@@ -9,8 +9,8 @@
         <ui:Toggle label="GUID" name="GUID" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
         <ui:Toggle label="Memo" name="Memo" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
     </ui:VisualElement>
-    <ui:MultiColumnTreeView name="StashTree" view-data-key="AssetStash-StashTree" virtualization-method="DynamicHeight" fixed-item-height="1" auto-expand="true" reorderable="true">
-        <ui:Columns primary-column-name="Name" reorderable="false">
+    <ui:MultiColumnTreeView name="StashTree" view-data-key="AssetStash-StashTree" virtualization-method="DynamicHeight" fixed-item-height="1" auto-expand="true" reorderable="true" horizontal-scrolling="true">
+        <ui:Columns primary-column-name="Name" reorderable="false" stretch-mode="Grow">
             <ui:Column name="Name" title="Name" min-width="160px" sortable="false" />
             <ui:Column name="Path" title="Path" min-width="160px" sortable="false" />
             <ui:Column name="GUID" title="GUID" min-width="200px" sortable="false" />
