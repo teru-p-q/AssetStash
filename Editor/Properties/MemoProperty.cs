@@ -17,14 +17,28 @@ namespace KuonLib.AssetStash.Properties
             SetupColumn(column, toggle, isVisible);
 
             var template = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Packages/com.github.teru-p-q.assetstash/Editor/UXML/MemoCellTemplate.uxml");
-            column.makeCell = () => template.Instantiate();
+
+            column.makeCell = () =>
+            {
+                var cell = template.Instantiate();
+                var cellLabel = FindLabelField(cell);
+                if (cellLabel != null)
+                {
+                    cellLabel.RegisterCallback<MouseDownEvent>(me => OnLabelMouseDown(me, cell));
+                }
+                return cell;
+            };
+
             column.bindCell = (e, i) =>
             {
                 var item = stashTree.GetItemDataForIndex(i);
                 if (item == null)
                 {
+                    e.userData = null;
                     return;
                 }
+
+                e.userData = item;
 
                 var label = FindLabelField(e);
 
@@ -63,34 +77,39 @@ namespace KuonLib.AssetStash.Properties
                     {
                         label.style.display = DisplayStyle.Flex;
                         label.text = item.Memo;
-
-                        label.RegisterCallback<MouseDownEvent>(me =>
-                        {
-                            if (me.button == (int)MouseButton.RightMouse)
-                            {
-                                var menu = new GenericMenu();
-                                menu.AddItem(new GUIContent("Edit Memo"), false, () => BeginEdit(item.ID));
-                                menu.ShowAsContext();
-                            }
-
-                            if (me.clickCount == 2)
-                            {
-                                me.StopImmediatePropagation();
-
-                                if (item.IsGroup)
-                                {
-                                    BeginEdit(item.ID);
-                                }
-                                else
-                                {
-                                    AssetStashUtil.OpenAsset(item);
-                                }
-                                return;
-                            }
-                        });
                     }
                 }
             };
+        }
+
+        void OnLabelMouseDown(MouseDownEvent me, VisualElement cell)
+        {
+            var item = cell.userData as AssetData;
+            if (item == null)
+            {
+                return;
+            }
+
+            if (me.button == (int)MouseButton.RightMouse)
+            {
+                var menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Edit Memo"), false, () => BeginEdit(item.ID));
+                menu.ShowAsContext();
+            }
+
+            if (me.clickCount == 2)
+            {
+                me.StopImmediatePropagation();
+
+                if (item.IsGroup)
+                {
+                    BeginEdit(item.ID);
+                }
+                else
+                {
+                    AssetStashUtil.OpenAsset(item);
+                }
+            }
         }
 
         public override void BeginEdit(int id) => BeginInlineEdit(ref editId, id);
