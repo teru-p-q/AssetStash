@@ -7,8 +7,35 @@ namespace KuonLib.AssetStash
 {
     public class AssetStashUtil
     {
+        public static bool IsMissing(AssetData data)
+        {
+            if (data == null || data.IsGroup)
+            {
+                return false;
+            }
+
+            if (data.IsExternal)
+            {
+                return string.IsNullOrEmpty(data.Name) || (!File.Exists(data.Name) && !Directory.Exists(data.Name));
+            }
+
+            return string.IsNullOrEmpty(GuidToPath(data.Guid));
+        }
+
+        public static string GetMissingTooltip(AssetData data)
+        {
+            return data.IsExternal
+                ? $"ファイルが見つかりません: {data.Name}"
+                : $"アセットが見つかりません (GUID: {data.Guid})";
+        }
+
         public static void OpenAsset(AssetData data)
         {
+            if (IsMissing(data))
+            {
+                return;
+            }
+
             if (IsScene(data))
             {
                 if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())

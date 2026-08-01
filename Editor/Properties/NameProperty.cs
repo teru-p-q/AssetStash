@@ -30,6 +30,10 @@ namespace KuonLib.AssetStash.Properties
                     var folderIcon = GetFolderIcon();
                     icon.image = (Texture2D)folderIcon.image;
                 }
+                else if (AssetStashUtil.IsMissing(item))
+                {
+                    icon.image = GetMissingIcon()?.image as Texture2D;
+                }
                 else
                 {
                     var tex = AssetDatabase.GetCachedIcon(AssetStashUtil.GuidToPath(item.Guid)) as Texture2D;
@@ -48,6 +52,9 @@ namespace KuonLib.AssetStash.Properties
 
         GUIContent GetFolderIcon() => EditorGUIUtility.IconContent("d_FolderFavorite Icon");
         GUIContent GetDefaultIcon() => EditorGUIUtility.IconContent("DefaultAsset Icon");
+        GUIContent GetMissingIcon() => EditorGUIUtility.IconContent("console.warnicon.sml");
+
+        static readonly Color MissingColor = new Color(0.85f, 0.45f, 0.4f);
 
         public override void Create(Column column, Toggle toggle, bool isVisible)
         {
@@ -65,6 +72,9 @@ namespace KuonLib.AssetStash.Properties
 
                 // icon
                 SetNameIcon(e, item);
+
+                var isMissing = AssetStashUtil.IsMissing(item);
+                e.tooltip = isMissing ? AssetStashUtil.GetMissingTooltip(item) : "";
 
                 var nameLabel = FindLabelField(e);
 
@@ -97,6 +107,7 @@ namespace KuonLib.AssetStash.Properties
                     {
                         nameLabel.style.display = DisplayStyle.Flex;
                         nameLabel.text = item.IsExternal ? Path.GetFileName(item.Name) : item.Name;
+                        nameLabel.style.color = isMissing ? new StyleColor(MissingColor) : new StyleColor(StyleKeyword.Null);
                     }
                 }
             };

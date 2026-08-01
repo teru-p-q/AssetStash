@@ -3,6 +3,7 @@
         <ui:Button text="お気に入り追加" name="Add" class="defaultCss" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
         <ui:Button text="グループ作成" name="CreateGroup" style="width: 100px; align-items: auto; flex-shrink: 1; align-content: auto;" />
         <ui:Button text="リセット" name="Reset" style="width: 100px; white-space: nowrap; align-items: auto; align-self: auto; align-content: auto; justify-content: flex-start; flex-shrink: 1;" />
+        <ui:Button text="欠損を削除" name="Cleanup" tooltip="参照先が存在しないブックマークをまとめて削除します" style="min-width: 100px; white-space: nowrap; flex-shrink: 0; display: none;" />
     </ui:VisualElement>
     <ui:VisualElement name="VisualElement" style="flex-grow: 0; align-items: auto; justify-content: flex-start; align-self: auto; align-content: auto; flex-shrink: 1; flex-direction: row;">
         <ui:Toggle label="Path" name="Path" style="flex-direction: row-reverse; flex-shrink: 1; flex-grow: 0; background-position-x: center 0; background-position-y: center 0; min-width: 0; width: auto;" />

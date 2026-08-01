@@ -25,6 +25,7 @@ namespace KuonLib.AssetStash
         bool autoSave;
 
         ToolbarSearchField searchField;
+        Button cleanupButton;
         string searchText = "";
 
         bool IsFiltering => !string.IsNullOrEmpty(searchText);
@@ -45,6 +46,8 @@ namespace KuonLib.AssetStash
         void RebuildTree(List<AssetData> items, AssetData refreshItem = null)
         {
             treeItems = BuildList(FilterAssets(items));
+            UpdateCleanupButton();
+
             if (stashTree == null)
             {
                 return;
@@ -170,6 +173,12 @@ namespace KuonLib.AssetStash
             uxmlRoot.Q<Button>("Add").clicked += OnAddButton;
             uxmlRoot.Q<Button>("CreateGroup").clicked += OnCreateGroupButton;
             uxmlRoot.Q<Button>("Reset").clicked += OnResetButton;
+
+            cleanupButton = uxmlRoot.Q<Button>("Cleanup");
+            if (cleanupButton != null)
+            {
+                cleanupButton.clicked += OnCleanupButton;
+            }
         }
 
         void SetupStashTree(VisualElement uxmlRoot)
@@ -275,17 +284,19 @@ namespace KuonLib.AssetStash
                 return;
             }
 
-            if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+            var isMissing = AssetStashUtil.IsMissing(selectedItem);
+
+            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing)
             {
                 var path = AssetStashUtil.GuidToPath(selectedItem.Guid);
-                if (!File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+                if (!AssetDatabase.IsValidFolder(path))
                 {
                     menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
                     menu.AddSeparator("");
                 }
             }
 
-            if (selectedItem.IsExternal)
+            if (selectedItem.IsExternal && !isMissing)
             {
                 menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の場所をエクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
                 menu.AddSeparator("");
@@ -307,7 +318,7 @@ namespace KuonLib.AssetStash
                 menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の登録を解除"), false, () => Delete(selectedItem));
             }
 
-            if (!selectedItem.IsGroup && !selectedItem.IsExternal)
+            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing)
             {
                 menu.AddSeparator("");
                 menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
@@ -376,6 +387,53 @@ namespace KuonLib.AssetStash
                 return new TreeViewItemData<AssetData>(groupData.ID, groupData, childItems);
             }).ToList();
         }
+
+        #region Missing
+        void UpdateCleanupButton()
+        {
+            if (cleanupButton == null)
+            {
+                return;
+            }
+
+            var count = assetsCache == null ? 0 : assetsCache.Count(AssetStashUtil.IsMissing);
+
+            cleanupButton.style.display = count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            cleanupButton.text = $"欠損を削除 ({count})";
+        }
+
+        void OnCleanupButton()
+        {
+            if (assetsCache == null)
+            {
+                return;
+            }
+
+            var missing = assetsCache.Where(AssetStashUtil.IsMissing).ToList();
+            if (missing.Count == 0)
+            {
+                UpdateCleanupButton();
+                return;
+            }
+
+            const int previewCount = 10;
+            var names = string.Join("\n", missing.Take(previewCount).Select(x => x.IsExternal ? x.Name : $"{x.Name} ({x.Guid})"));
+            if (missing.Count > previewCount)
+            {
+                names += $"\n... 他 {missing.Count - previewCount} 件";
+            }
+
+            if (!EditorUtility.DisplayDialog("欠損ブックマークの削除", $"参照先が見つからない {missing.Count} 件を削除します。\n\n{names}", "削除", "キャンセル"))
+            {
+                return;
+            }
+
+            ClearSearch();
+            assetsCache.RemoveAll(AssetStashUtil.IsMissing);
+            SaveStash(assetsCache);
+            RebuildTree(assetsCache);
+        }
+        #endregion
 
         #region Search
         bool ClearSearch()
