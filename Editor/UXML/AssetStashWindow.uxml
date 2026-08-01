@@ -8,6 +8,7 @@
         <ui:Toggle label="Path" name="Path" style="flex-direction: row-reverse; flex-shrink: 1; flex-grow: 0; background-position-x: center 0; background-position-y: center 0; min-width: 0; width: auto;" />
         <ui:Toggle label="GUID" name="GUID" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
         <ui:Toggle label="Memo" name="Memo" toggle-on-label-click="true" style="flex-shrink: 1; flex-direction: row-reverse;" />
+        <uie:ToolbarSearchField name="Search" tooltip="名前 / パス / GUID / メモ を検索（スペース区切りで AND 検索）" style="flex-grow: 1; flex-shrink: 1; min-width: 100px; margin-left: 5px; margin-right: 5px; align-self: center;" />
     </ui:VisualElement>
     <ui:MultiColumnTreeView name="StashTree" view-data-key="AssetStash-StashTree" virtualization-method="DynamicHeight" fixed-item-height="1" auto-expand="true" reorderable="true" horizontal-scrolling="true">
         <ui:Columns primary-column-name="Name" reorderable="false" stretch-mode="Grow">

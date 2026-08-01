@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -23,6 +24,11 @@ namespace KuonLib.AssetStash
         bool isMemoVisible;
         bool autoSave;
 
+        ToolbarSearchField searchField;
+        string searchText = "";
+
+        bool IsFiltering => !string.IsNullOrEmpty(searchText);
+
         void Reload()
         {
             CurrentID = 0;
@@ -38,7 +44,7 @@ namespace KuonLib.AssetStash
 
         void RebuildTree(List<AssetData> items, AssetData refreshItem = null)
         {
-            treeItems = BuildList(items);
+            treeItems = BuildList(FilterAssets(items));
             if (stashTree == null)
             {
                 return;
@@ -50,11 +56,12 @@ namespace KuonLib.AssetStash
             stashTree.MemoProperty.IsVisible = isMemoVisible;
             autoSave = true;
 
+            stashTree.ForceExpandAll = IsFiltering;
             stashTree.SetTreeItems(treeItems);
             stashTree.Rebuild();
         }
 
-        void AddStash()
+        bool AddStash()
         {
             bool changed = false;
 
@@ -82,10 +89,14 @@ namespace KuonLib.AssetStash
                 SaveStash(assetsCache);
                 RebuildTree(assetsCache);
             }
+
+            return changed;
         }
 
         private void OnCreateGroupButton()
         {
+            ClearSearch();
+
             CurrentID++;
 
             var info = new AssetData()
@@ -109,6 +120,7 @@ namespace KuonLib.AssetStash
 
         void OnResetButton()
         {
+            ClearSearch();
             Reset();
             SaveStash(assetsCache.Select(x => x).ToList());
             Reload();
@@ -116,7 +128,13 @@ namespace KuonLib.AssetStash
 
         void OnAddButton()
         {
-            AddStash();
+            var cleared = ClearSearch();
+            var added = AddStash();
+
+            if (cleared && !added)
+            {
+                RebuildTree(assetsCache);
+            }
         }
 
         int[] pendingDraggedIds = null;
@@ -128,6 +146,7 @@ namespace KuonLib.AssetStash
 
             SetupToolbarButtons(uxmlRoot);
             SetupStashTree(uxmlRoot);
+            SetupSearchField(uxmlRoot);
             SetupDragAndDropHandlers();
             SetupTreeChangeHandlers();
             SetupDoubleClickToOpen(root);
@@ -162,6 +181,21 @@ namespace KuonLib.AssetStash
             stashTree.SetTreeItems(treeItems);
         }
 
+        void SetupSearchField(VisualElement uxmlRoot)
+        {
+            searchField = uxmlRoot.Q<ToolbarSearchField>("Search");
+            if (searchField == null)
+            {
+                return;
+            }
+
+            searchField.RegisterValueChangedCallback(evt =>
+            {
+                searchText = evt.newValue == null ? "" : evt.newValue.Trim();
+                RebuildTree(assetsCache);
+            });
+        }
+
         void SetupDragAndDropHandlers()
         {
             stashTree.CanStartDrag += (args) => true;
@@ -178,7 +212,17 @@ namespace KuonLib.AssetStash
         {
             stashTree.ItemExpandedChanged += (item) =>
             {
-                var i = assetsCache.First(x => x.ID == item.id);
+                if (IsFiltering)
+                {
+                    return;
+                }
+
+                var i = assetsCache.FirstOrDefault(x => x.ID == item.id);
+                if (i == null)
+                {
+                    return;
+                }
+
                 i.IsExpanded = item.isExpanded;
                 SaveStash(assetsCache);
             };
@@ -276,11 +320,16 @@ namespace KuonLib.AssetStash
         {
             root.RegisterCallback<KeyDownEvent>(x =>
             {
+                if (x.target is VisualElement ve && ve.GetFirstOfType<TextField>() != null)
+                {
+                    return;
+                }
+
                 if (x.keyCode == KeyCode.F2)
                 {
                     x.StopImmediatePropagation();
                     var item = stashTree.SelectedItem;
-                    if (item.IsGroup)
+                    if (item != null && item.IsGroup)
                     {
                         stashTree.BeginNameEdit(item.ID);
                     }
@@ -327,6 +376,83 @@ namespace KuonLib.AssetStash
                 return new TreeViewItemData<AssetData>(groupData.ID, groupData, childItems);
             }).ToList();
         }
+
+        #region Search
+        bool ClearSearch()
+        {
+            if (!IsFiltering)
+            {
+                return false;
+            }
+
+            searchText = "";
+            searchField?.SetValueWithoutNotify("");
+            return true;
+        }
+
+        List<AssetData> FilterAssets(List<AssetData> assets)
+        {
+            if (!IsFiltering || assets == null)
+            {
+                return assets;
+            }
+
+            var keywords = searchText.Split(new[] { ' ', '　' }, StringSplitOptions.RemoveEmptyEntries);
+            if (keywords.Length == 0)
+            {
+                return assets;
+            }
+
+            var visibleIds = new HashSet<int>();
+            var matchedGroupIds = new HashSet<int>();
+
+            foreach (var item in assets)
+            {
+                if (!IsMatch(item, keywords))
+                {
+                    continue;
+                }
+
+                visibleIds.Add(item.ID);
+
+                if (item.IsGroup)
+                {
+                    matchedGroupIds.Add(item.ID);
+                }
+                else if (item.ParentID != -1)
+                {
+                    visibleIds.Add(item.ParentID);
+                }
+            }
+
+            return assets
+                .Where(x => visibleIds.Contains(x.ID) || (!x.IsGroup && matchedGroupIds.Contains(x.ParentID)))
+                .ToList();
+        }
+
+        static bool IsMatch(AssetData item, string[] keywords)
+        {
+            var name = item.Name ?? "";
+            var memo = item.Memo ?? "";
+            var path = item.IsGroup ? "" : (item.IsExternal ? name : AssetStashUtil.GuidToPath(item.Guid));
+
+            foreach (var keyword in keywords)
+            {
+                if (!Contains(name, keyword)
+                    && !Contains(path, keyword)
+                    && !Contains(item.Guid, keyword)
+                    && !Contains(memo, keyword))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        static bool Contains(string source, string keyword)
+            => !string.IsNullOrEmpty(source) && source.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
+        #endregion
 
         void SaveStash(List<AssetData> assetData)
         {
@@ -403,6 +529,11 @@ namespace KuonLib.AssetStash
 
         DragVisualMode DragAndDropUpdate(HandleDragAndDropArgs args, int[] draggedIds)
         {
+            if (IsFiltering)
+            {
+                return DragVisualMode.Rejected;
+            }
+
             if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
             {
                 DragAndDrop.objectReferences = cachedDragObjects;
@@ -438,6 +569,11 @@ namespace KuonLib.AssetStash
 
         DragVisualMode HandleDrop(HandleDragAndDropArgs args, int[] draggedIds)
         {
+            if (IsFiltering)
+            {
+                return DragVisualMode.Rejected;
+            }
+
             if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
             {
                 DragAndDrop.objectReferences = cachedDragObjects;

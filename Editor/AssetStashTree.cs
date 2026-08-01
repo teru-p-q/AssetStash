@@ -97,13 +97,16 @@ namespace KuonLib.AssetStash
             treeView.SetRootItems(treeItems);
         }
 
+        // フィルタ表示中はヒットした項目を隠さないよう、保存された展開状態を無視して全展開する
+        public bool ForceExpandAll { get; set; }
+
         public void Rebuild()
         {
             treeView.Rebuild();
 
             foreach (var item in treeItems)
             {
-                if (item.data.IsExpanded)
+                if (ForceExpandAll || item.data.IsExpanded)
                 {
                     treeView.ExpandItem(item.data.ID);
                 }
