@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.ShortcutManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -27,6 +28,8 @@ namespace KuonLib.AssetStash
         ToolbarSearchField searchField;
         Button cleanupButton;
         string searchText = "";
+
+        readonly UndoHistory undoHistory = new();
 
         bool IsFiltering => !string.IsNullOrEmpty(searchText);
 
@@ -67,6 +70,7 @@ namespace KuonLib.AssetStash
         bool AddStash()
         {
             bool changed = false;
+            var before = UndoHistory.CreateSnapshot(assetsCache);
 
             foreach (string assetGuid in Selection.assetGUIDs)
             {
@@ -89,6 +93,7 @@ namespace KuonLib.AssetStash
 
             if (changed)
             {
+                undoHistory.Push(before);
                 SaveStash(assetsCache);
                 RebuildTree(assetsCache);
             }
@@ -100,6 +105,7 @@ namespace KuonLib.AssetStash
         {
             ClearSearch();
 
+            var before = UndoHistory.CreateSnapshot(assetsCache);
             CurrentID++;
 
             var info = new AssetData()
@@ -115,6 +121,7 @@ namespace KuonLib.AssetStash
 
             assetsCache.Add(info);
             //
+            undoHistory.Push(before);
             SaveStash(assetsCache);
             RebuildTree(assetsCache);
 
@@ -123,10 +130,24 @@ namespace KuonLib.AssetStash
 
         void OnResetButton()
         {
+            var count = assetsCache == null ? 0 : assetsCache.Count;
+            if (count > 0 && !EditorUtility.DisplayDialog(
+                "リセット",
+                $"登録されている {count} 件のブックマークをすべて削除します。\n\nこの操作は Ctrl+Z で元に戻せます。",
+                "削除",
+                "キャンセル"))
+            {
+                return;
+            }
+
+            var before = UndoHistory.CreateSnapshot(assetsCache);
+
             ClearSearch();
             Reset();
             SaveStash(assetsCache.Select(x => x).ToList());
             Reload();
+
+            undoHistory.Push(before);
         }
 
         void OnAddButton()
@@ -324,6 +345,13 @@ namespace KuonLib.AssetStash
                 menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
             }
 
+            if (undoHistory.CanUndo)
+            {
+                var shortcut = Application.platform == RuntimePlatform.OSXEditor ? "Cmd+Z" : "Ctrl+Z";
+                menu.AddSeparator("");
+                menu.AddItem(new GUIContent($"元に戻す ({shortcut})"), false, PerformUndo);
+            }
+
             menu.DropDown(menuRect);
         }
 
@@ -428,8 +456,53 @@ namespace KuonLib.AssetStash
                 return;
             }
 
+            var before = UndoHistory.CreateSnapshot(assetsCache);
+
             ClearSearch();
             assetsCache.RemoveAll(AssetStashUtil.IsMissing);
+
+            undoHistory.Push(before);
+            SaveStash(assetsCache);
+            RebuildTree(assetsCache);
+        }
+        #endregion
+
+        #region Undo
+        // グローバルの Edit/Undo より優先させるため、ウィンドウをコンテキストにした ShortcutManager で登録する
+        [Shortcut("AssetStash/Undo", typeof(AssetStashWindow), KeyCode.Z, ShortcutModifiers.Action)]
+        static void UndoShortcut(ShortcutArguments args) => (args.context as AssetStashWindow)?.PerformUndo();
+
+        [Shortcut("AssetStash/Redo", typeof(AssetStashWindow), KeyCode.Y, ShortcutModifiers.Action)]
+        static void RedoShortcut(ShortcutArguments args) => (args.context as AssetStashWindow)?.PerformRedo();
+
+        [Shortcut("AssetStash/Redo Alt", typeof(AssetStashWindow), KeyCode.Z, ShortcutModifiers.Action | ShortcutModifiers.Shift)]
+        static void RedoAltShortcut(ShortcutArguments args) => (args.context as AssetStashWindow)?.PerformRedo();
+
+        void PerformUndo()
+        {
+            ApplyHistory(undoHistory.Undo(assetsCache));
+        }
+
+        void PerformRedo()
+        {
+            ApplyHistory(undoHistory.Redo(assetsCache));
+        }
+
+        void ApplyHistory(List<AssetData> restored)
+        {
+            if (restored == null)
+            {
+                return;
+            }
+
+            assetsCache = restored;
+
+            // ID を再利用すると復元済みの項目と衝突するため、採番は戻さない
+            if (assetsCache.Count > 0)
+            {
+                CurrentID = Mathf.Max(CurrentID, assetsCache.Max(x => x.ID) + 1);
+            }
+
             SaveStash(assetsCache);
             RebuildTree(assetsCache);
         }
@@ -523,7 +596,21 @@ namespace KuonLib.AssetStash
 
         public void Delete(AssetData item)
         {
+            var childCount = item.IsGroup ? assetsCache.Count(a => a.ParentID == item.ID) : 0;
+            if (childCount > 0 && !EditorUtility.DisplayDialog(
+                "グループの削除",
+                $"グループ「{item.Name}」と、配下の {childCount} 件のブックマークを削除します。\n\nこの操作は Ctrl+Z で元に戻せます。",
+                "削除",
+                "キャンセル"))
+            {
+                return;
+            }
+
+            var before = UndoHistory.CreateSnapshot(assetsCache);
+
             assetsCache.RemoveAll(a => a.ID == item.ID || a.ParentID == item.ID);
+
+            undoHistory.Push(before);
             SaveStash(assetsCache);
             RebuildTree(assetsCache);
         }
@@ -665,6 +752,7 @@ namespace KuonLib.AssetStash
 
         void OnDrop(HandleDragAndDropArgs args, int[] dragged)
         {
+            var before = UndoHistory.CreateSnapshot(assetsCache);
             var targetItem = stashTree.GetItemDataForIndex(args.insertAtIndex);
             var insertIndex = targetItem == null ? assetsCache.Count() : assetsCache.FindIndex(x => x.ID == targetItem.ID);
 
@@ -726,6 +814,7 @@ namespace KuonLib.AssetStash
                     refreshItem = null;
                 }
             }
+            undoHistory.Push(before);
             SaveStash(assetsCache);
             RebuildTree(assetsCache, refreshItem);
         }
@@ -733,6 +822,7 @@ namespace KuonLib.AssetStash
         void OnDrop(HandleDragAndDropArgs args, string[] draggedPath)
         {
             AssetData refreshItem = null;
+            var before = UndoHistory.CreateSnapshot(assetsCache);
 
             var targetItem = stashTree.GetItemDataForIndex(args.insertAtIndex);
             var insertIndex = targetItem == null ? args.insertAtIndex : assetsCache.FindIndex(x => x.ID == targetItem.ID);
@@ -791,6 +881,12 @@ namespace KuonLib.AssetStash
                     }
                 }
             }
+
+            if (assetsCache.Count != before.Count)
+            {
+                undoHistory.Push(before);
+            }
+
             SaveStash(assetsCache);
             RebuildTree(assetsCache, refreshItem);
         }
