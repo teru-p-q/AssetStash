@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine.UIElements;
@@ -70,6 +72,23 @@ namespace KuonLib.AssetStash
                     EditorGUIUtility.PingObject(obj);
                 }
             }
+        }
+
+        public static void PingAssets(IReadOnlyList<AssetData> items)
+        {
+            var objects = items
+                .Where(x => !IsMissing(x) && !string.IsNullOrEmpty(x.Guid))
+                .Select(x => AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(GuidToPath(x.Guid)))
+                .Where(x => x != null)
+                .ToArray();
+
+            if (objects.Length == 0)
+            {
+                return;
+            }
+
+            Selection.objects = objects;
+            EditorGUIUtility.PingObject(objects[0]);
         }
 
         public static void OpenFolder(AssetData data)

@@ -300,19 +300,31 @@ namespace KuonLib.AssetStash
             {
                 if (me.button == (int)MouseButton.RightMouse)
                 {
+                    var selectedItems = stashTree.SelectedItems.ToList();
                     var selectedItem = stashTree.GetItemDataForIndex(stashTree.SelectedIndex);
-                    stashTree.SetSelectionById(selectedItem.ID);
+
+                    // 複数選択中は選択を維持し、一括操作のメニューを出す
+                    if (selectedItems.Count <= 1 && selectedItem != null)
+                    {
+                        stashTree.SetSelectionById(selectedItem.ID);
+                    }
 
                     Vector2 mousePos = me.mousePosition;
                     Rect menuRect = new Rect(mousePos, Vector2.zero);
 
-                    EditorApplication.delayCall += () => ShowContextMenu(selectedItem, menuRect);
+                    EditorApplication.delayCall += () => ShowContextMenu(selectedItem, selectedItems, menuRect);
                 }
             });
         }
 
-        void ShowContextMenu(AssetData selectedItem, Rect menuRect)
+        void ShowContextMenu(AssetData selectedItem, List<AssetData> selectedItems, Rect menuRect)
         {
+            if (selectedItems != null && selectedItems.Count > 1)
+            {
+                ShowMultiSelectionContextMenu(selectedItems, menuRect);
+                return;
+            }
+
             var menu = new GenericMenu();
             if (selectedItem == null)
             {
@@ -359,14 +371,42 @@ namespace KuonLib.AssetStash
                 menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
             }
 
-            if (undoHistory.CanUndo)
-            {
-                var shortcut = Application.platform == RuntimePlatform.OSXEditor ? "Cmd+Z" : "Ctrl+Z";
-                menu.AddSeparator("");
-                menu.AddItem(new GUIContent($"元に戻す ({shortcut})"), false, PerformUndo);
-            }
+            AddUndoMenuItem(menu);
 
             menu.DropDown(menuRect);
+        }
+
+        void ShowMultiSelectionContextMenu(List<AssetData> selectedItems, Rect menuRect)
+        {
+            var menu = new GenericMenu();
+
+            var openable = selectedItems
+                .Where(x => !x.IsGroup && !x.IsExternal && !AssetStashUtil.IsMissing(x))
+                .ToList();
+
+            if (openable.Count > 0)
+            {
+                menu.AddItem(new GUIContent($"{openable.Count} 件の場所を示す"), false, () => AssetStashUtil.PingAssets(openable));
+                menu.AddSeparator("");
+            }
+
+            menu.AddItem(new GUIContent($"選択中の {selectedItems.Count} 件を削除"), false, () => Delete(selectedItems));
+
+            AddUndoMenuItem(menu);
+
+            menu.DropDown(menuRect);
+        }
+
+        void AddUndoMenuItem(GenericMenu menu)
+        {
+            if (!undoHistory.CanUndo)
+            {
+                return;
+            }
+
+            var shortcut = Application.platform == RuntimePlatform.OSXEditor ? "Cmd+Z" : "Ctrl+Z";
+            menu.AddSeparator("");
+            menu.AddItem(new GUIContent($"元に戻す ({shortcut})"), false, PerformUndo);
         }
 
         void SetupKeyboardShortcuts(VisualElement root)
@@ -390,11 +430,7 @@ namespace KuonLib.AssetStash
                 else if (x.keyCode == KeyCode.Delete || x.keyCode == KeyCode.Backspace)
                 {
                     x.StopImmediatePropagation();
-                    var item = stashTree.SelectedItem;
-                    if (item != null)
-                    {
-                        Delete(item);
-                    }
+                    Delete(stashTree.SelectedItems.ToList());
                 }
             });
         }
@@ -610,23 +646,50 @@ namespace KuonLib.AssetStash
 
         public void Delete(AssetData item)
         {
-            var childCount = item.IsGroup ? assetsCache.Count(a => a.ParentID == item.ID) : 0;
-            if (childCount > 0 && !EditorUtility.DisplayDialog(
-                "グループの削除",
-                $"グループ「{item.Name}」と、配下の {childCount} 件のブックマークを削除します。\n\nこの操作は Ctrl+Z で元に戻せます。",
-                "削除",
-                "キャンセル"))
+            Delete(new[] { item });
+        }
+
+        public void Delete(IReadOnlyList<AssetData> items)
+        {
+            if (items == null || items.Count == 0)
+            {
+                return;
+            }
+
+            var targetIds = new HashSet<int>(items.Select(x => x.ID));
+
+            var removeCount = assetsCache.Count(a => targetIds.Contains(a.ID) || targetIds.Contains(a.ParentID));
+
+            if (!ConfirmDelete(items, removeCount))
             {
                 return;
             }
 
             var before = UndoHistory.CreateSnapshot(assetsCache);
 
-            assetsCache.RemoveAll(a => a.ID == item.ID || a.ParentID == item.ID);
+            assetsCache.RemoveAll(a => targetIds.Contains(a.ID) || targetIds.Contains(a.ParentID));
 
             undoHistory.Push(before);
             SaveStash(assetsCache);
             RebuildTree(assetsCache);
+        }
+
+        bool ConfirmDelete(IReadOnlyList<AssetData> items, int removeCount)
+        {
+            if (removeCount <= 1)
+            {
+                return true;
+            }
+
+            var message = items.Count == 1
+                ? $"グループ「{items[0].Name}」と、配下の {removeCount - 1} 件のブックマークを削除します。"
+                : $"選択中の {items.Count} 件（配下を含めて {removeCount} 件）を削除します。";
+
+            return EditorUtility.DisplayDialog(
+                "削除",
+                $"{message}\n\nこの操作は Ctrl+Z で元に戻せます。",
+                "削除",
+                "キャンセル");
         }
 
         #region DnD
@@ -640,10 +703,13 @@ namespace KuonLib.AssetStash
                 return new StartDragArgs("Dragging Assets", DragVisualMode.None);
             }
 
-            var m = assetsCache.FirstOrDefault(x => x.ID == draggedIds[0]);
-
-            if (m != null)
+            foreach (var m in CollectDraggedItems(draggedIds))
             {
+                if (m.IsGroup || AssetStashUtil.IsMissing(m))
+                {
+                    continue;
+                }
+
                 string path = AssetDatabase.GUIDToAssetPath(m.Guid);
                 var mono = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
 
@@ -709,15 +775,15 @@ namespace KuonLib.AssetStash
             }
 
             int targetParent = args.parentId;
-            if (!hasExternal && dragged != null && dragged.Any(id => id == targetParent))
-            {
-                return DragVisualMode.Rejected;
-            }
 
-            if (!hasExternal)
+            if (dragged != null && dragged.Length > 0)
             {
-                var f = assetsCache.Find(x => x.ID == dragged[0]);
-                if (f != null && f.IsGroup && targetParent != -1)
+                if (dragged.Any(id => id == targetParent))
+                {
+                    return DragVisualMode.Rejected;
+                }
+
+                if (targetParent != -1 && CollectDraggedItems(dragged).Any(x => x.IsGroup))
                 {
                     return DragVisualMode.Rejected;
                 }
@@ -766,71 +832,100 @@ namespace KuonLib.AssetStash
 
         void OnDrop(HandleDragAndDropArgs args, int[] dragged)
         {
+            var items = CollectDraggedItems(dragged);
+            if (items.Count == 0)
+            {
+                return;
+            }
+
+            var target = args.target as AssetData;
+            var droppedOnGroup = target != null && target.IsGroup;
+
+            var parentId = droppedOnGroup ? target.ID
+                : target != null ? target.ParentID
+                : args.parentId;
+
+            var anchor = droppedOnGroup ? null : stashTree.GetItemDataForIndex(args.insertAtIndex);
+
+            if (items.Any(x => x.ID == parentId))
+            {
+                return;
+            }
+
             var before = UndoHistory.CreateSnapshot(assetsCache);
-            var targetItem = stashTree.GetItemDataForIndex(args.insertAtIndex);
-            var insertIndex = targetItem == null ? assetsCache.Count() : assetsCache.FindIndex(x => x.ID == targetItem.ID);
 
-            AssetData refreshItem = null;
-            if (args.target != null)
+            var block = BuildMoveBlock(items, parentId);
+            var blockIds = new HashSet<int>(block.Select(x => x.ID));
+
+            if (anchor != null && blockIds.Contains(anchor.ID))
             {
-                var parent = (AssetData)args.target;
-                var dragItem = assetsCache.First(x => x.ID == dragged[0]);
-
-                if (parent.IsGroup)
-                {
-                    assetsCache.Remove(dragItem);
-                    dragItem.ParentID = parent.ID;
-                    assetsCache.Add(dragItem);
-                    refreshItem = dragItem;
-                }
-                else
-                {
-                    dragItem.ParentID = parent.ParentID;
-                    assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
-                    assetsCache.Remove(dragItem);
-                    refreshItem = dragItem;
-                }
+                anchor = null;
             }
-            else if (args.target == null)
+
+            assetsCache.RemoveAll(x => blockIds.Contains(x.ID));
+
+            var insertIndex = anchor == null ? assetsCache.Count : assetsCache.FindIndex(x => x.ID == anchor.ID);
+            if (insertIndex < 0)
             {
-                if (args.parentId != -1)
-                {
-                    var dragItem = assetsCache.First(x => x.ID == dragged[0]);
-                    dragItem.ParentID = args.parentId;
-                    assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
-                    assetsCache.Remove(dragItem);
-                    refreshItem = null;
-                }
-                else
-                {
-                    var dragItem = assetsCache.First(x => x.ID == dragged[0]);
-                    dragItem.ParentID = -1;
-                    assetsCache.Insert(insertIndex, (AssetData)dragItem.Clone());
-
-                    if (dragItem.IsGroup)
-                    {
-                        var childItems = assetsCache.Where(x => x.ParentID == dragItem.ID).ToArray();
-                        for (var i = 0; i < childItems.Length; i++)
-                        {
-                            assetsCache.Insert(insertIndex + i + 1, childItems[i]);
-                        }
-
-                        assetsCache.Remove(dragItem);
-                        foreach (var i in childItems)
-                        {
-                            assetsCache.Remove(i);
-                        }
-                    }
-                    else
-                    {
-                        assetsCache.Remove(dragItem);
-                    }
-                    refreshItem = null;
-                }
+                insertIndex = assetsCache.Count;
             }
+
+            assetsCache.InsertRange(insertIndex, block);
+
             undoHistory.Push(before);
             SaveStash(assetsCache);
-            RebuildTree(assetsCache, refreshItem);
+            RebuildTree(assetsCache);
+
+            stashTree.SetSelectionByIds(items.Select(x => x.ID).ToList());
+        }
+
+        List<AssetData> CollectDraggedItems(int[] dragged)
+        {
+            if (dragged == null || dragged.Length == 0 || assetsCache == null)
+            {
+                return new List<AssetData>();
+            }
+
+            var draggedIds = new HashSet<int>(dragged);
+            return assetsCache.Where(x => draggedIds.Contains(x.ID)).ToList();
+        }
+
+        List<AssetData> BuildMoveBlock(List<AssetData> items, int parentId)
+        {
+            var draggedIds = new HashSet<int>(items.Select(x => x.ID));
+            var added = new HashSet<int>();
+            var block = new List<AssetData>();
+
+            foreach (var item in items)
+            {
+                if (item.ParentID != -1 && draggedIds.Contains(item.ParentID))
+                {
+                    continue;
+                }
+
+                if (!added.Add(item.ID))
+                {
+                    continue;
+                }
+
+                item.ParentID = item.IsGroup ? -1 : parentId;
+                block.Add(item);
+
+                if (!item.IsGroup)
+                {
+                    continue;
+                }
+
+                foreach (var child in assetsCache.Where(x => x.ParentID == item.ID).ToList())
+                {
+                    if (added.Add(child.ID))
+                    {
+                        block.Add(child);
+                    }
+                }
+            }
+
+            return block;
         }
 
         void OnDrop(HandleDragAndDropArgs args, string[] draggedPath)

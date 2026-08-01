@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Undo / Redo に対応（Ctrl+Z / Ctrl+Y、macOS は Cmd+Z / Cmd+Shift+Z）。追加・削除・並べ替え・リセット・メモ / グループ名の編集が対象
 - 右クリックメニューに「元に戻す」を追加
 - リセット時と、子を持つグループの削除時に確認ダイアログを表示
+- 複数選択に対応。まとめて移動 / 削除、複数アセットの Inspector へのドラッグが可能に
+- 複数選択時の右クリックメニューに「選択中の n 件を削除」「n 件の場所を示す」を追加
 
 ### Fixed
 - 削除済みアセットのブックマークを右クリックすると例外が発生する問題

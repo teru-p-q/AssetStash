@@ -1,6 +1,7 @@
 ﻿using KuonLib.AssetStash.Properties;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine.UIElements;
 
 namespace KuonLib.AssetStash
@@ -78,6 +79,7 @@ namespace KuonLib.AssetStash
             treeView.virtualizationMethod = CollectionVirtualizationMethod.FixedHeight;
             treeView.SetRootItems(treeItems);
             treeView.reorderable = true;
+            treeView.selectionType = SelectionType.Multiple;
 
             NameProperty = new(this);
             NameProperty.Create(NameColumn, null, true);
@@ -139,6 +141,7 @@ namespace KuonLib.AssetStash
         public void Focus() => treeView.Focus();
 
         public AssetData SelectedItem => (AssetData)treeView.selectedItem;
+        public IEnumerable<AssetData> SelectedItems => treeView.selectedItems.OfType<AssetData>();
         public IEnumerable<int> SelectedIds => treeView.selectedIds;
         public int SelectedIndex => treeView.selectedIndex;
 
@@ -152,6 +155,23 @@ namespace KuonLib.AssetStash
 
         public AssetData GetItemDataForIndex(int index) => treeView.GetItemDataForIndex<AssetData>(index);
         public void SetSelectionById(int id) => treeView.SetSelectionById(id);
+        public void SetSelectionByIds(IEnumerable<int> ids)
+        {
+            var isFirst = true;
+
+            foreach (var id in ids)
+            {
+                if (isFirst)
+                {
+                    treeView.SetSelectionById(id);
+                    isFirst = false;
+                }
+                else
+                {
+                    treeView.AddToSelectionById(id);
+                }
+            }
+        }
 
         public TextField FindTextField(VisualElement ve) => ve.Query<TextField>("InlineEdit");
     }
