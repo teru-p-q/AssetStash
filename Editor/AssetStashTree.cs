@@ -52,6 +52,24 @@ namespace KuonLib.AssetStash
             remove => onChanged -= value;
         }
 
+        event Action onItemEditBegin;
+        public event Action OnItemEditBegin
+        {
+            add => onItemEditBegin += value;
+            remove => onItemEditBegin -= value;
+        }
+
+        event Action onItemEdited;
+        public event Action OnItemEdited
+        {
+            add => onItemEdited += value;
+            remove => onItemEdited -= value;
+        }
+
+        public void NotifyItemEditBegin() => onItemEditBegin?.Invoke();
+
+        public void NotifyItemEdited() => onItemEdited?.Invoke();
+
         public AssetStashTree(MultiColumnTreeView multiColumnTreeView, Toggle path, Toggle guid, Toggle memo)
         {
             treeView = multiColumnTreeView;

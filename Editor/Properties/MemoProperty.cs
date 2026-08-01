@@ -97,10 +97,12 @@ namespace KuonLib.AssetStash.Properties
 
         public override void EndEdit(VisualElement e, AssetData item, string newMemo)
         {
-            if (item == null)
+            if (item == null || editId != item.ID)
             {
                 return;
             }
+
+            var changed = item.Memo != newMemo;
 
             item.Memo = newMemo;
             editId = -1;
@@ -114,6 +116,11 @@ namespace KuonLib.AssetStash.Properties
                     memoLabel.style.display = DisplayStyle.Flex;
                 }
             });
+
+            if (changed)
+            {
+                stashTree.NotifyItemEdited();
+            }
         }
 
         public override void CancelEdit(VisualElement e)

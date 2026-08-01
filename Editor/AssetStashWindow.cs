@@ -30,6 +30,7 @@ namespace KuonLib.AssetStash
         string searchText = "";
 
         readonly UndoHistory undoHistory = new();
+        List<AssetData> editSnapshot;
 
         bool IsFiltering => !string.IsNullOrEmpty(searchText);
 
@@ -263,6 +264,19 @@ namespace KuonLib.AssetStash
                 {
                     SaveStash(assetsCache);
                 }
+            };
+
+            stashTree.OnItemEditBegin += () => editSnapshot = UndoHistory.CreateSnapshot(assetsCache);
+
+            stashTree.OnItemEdited += () =>
+            {
+                if (editSnapshot != null)
+                {
+                    undoHistory.Push(editSnapshot);
+                    editSnapshot = null;
+                }
+
+                SaveStash(assetsCache);
             };
         }
 
