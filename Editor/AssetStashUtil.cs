@@ -21,7 +21,9 @@ namespace KuonLib.AssetStash
                 return string.IsNullOrEmpty(data.Name) || (!File.Exists(data.Name) && !Directory.Exists(data.Name));
             }
 
-            return string.IsNullOrEmpty(GuidToPath(data.Guid));
+            // GUIDToAssetPath は削除後も同一セッション中は古いパスを返し続けるため、実在も確認する
+            var path = GuidToPath(data.Guid);
+            return string.IsNullOrEmpty(path) || !AssetDatabase.AssetPathExists(path);
         }
 
         public static string GetMissingTooltip(AssetData data)

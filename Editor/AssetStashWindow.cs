@@ -79,8 +79,9 @@ namespace KuonLib.AssetStash
                 }
 
                 var path = AssetStashUtil.GuidToPath(item.Guid);
+                var state = ResolveState(item);
 
-                if (!resolvedPaths.TryGetValue(item.Guid, out var previous) || previous != path)
+                if (!resolvedPaths.TryGetValue(item.Guid, out var previous) || previous != state)
                 {
                     moved = true;
                 }
@@ -129,8 +130,14 @@ namespace KuonLib.AssetStash
                     continue;
                 }
 
-                resolvedPaths[item.Guid] = AssetStashUtil.GuidToPath(item.Guid);
+                resolvedPaths[item.Guid] = ResolveState(item);
             }
+        }
+
+        // 削除されてもパスは古い値のまま残るため、実在の有無まで含めて状態とする
+        static string ResolveState(AssetData item)
+        {
+            return AssetStashUtil.IsMissing(item) ? "" : AssetStashUtil.GuidToPath(item.Guid);
         }
 
         void RebuildTree(List<AssetData> items, AssetData refreshItem = null)
