@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 右クリックメニューに「パスをコピー」「GUID をコピー」「エクスプローラーで開く」「加算で開く」を追加
 - 複数選択時の右クリックメニューに「n 件を開く」「n 件のパス / GUID をコピー」を追加
 - アセットのリネーム / 移動 / 削除に追従してウィンドウの表示を自動更新（AssetPostprocessor）
+- シーン内 GameObject のブックマークに対応（GlobalObjectId で識別。Hierarchy からのドラッグと「お気に入り追加」で登録）
+- 右クリック > 選択 で、必要ならシーンを開いたうえでオブジェクトを選択
 
 ### Changed
 - 「エクスプローラーで開く」を Assets 内のアセットにも表示（従来は Assets 外のファイルのみ）

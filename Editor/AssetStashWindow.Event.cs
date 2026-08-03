@@ -1,5 +1,7 @@
 ﻿using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace KuonLib.AssetStash
 {
@@ -16,10 +18,45 @@ namespace KuonLib.AssetStash
 
         private void OnEnable()
         {
+            // シーンの開閉でシーン内オブジェクトの解決結果が変わる
+            EditorSceneManager.sceneOpened += OnSceneOpened;
+            EditorSceneManager.sceneClosed += OnSceneClosed;
         }
 
         public void OnDisable()
         {
+            EditorSceneManager.sceneOpened -= OnSceneOpened;
+            EditorSceneManager.sceneClosed -= OnSceneClosed;
+        }
+
+        bool sceneRefreshQueued;
+
+        void OnSceneOpened(Scene scene, OpenSceneMode mode) => ScheduleSceneObjectRefresh();
+
+        void OnSceneClosed(Scene scene) => ScheduleSceneObjectRefresh();
+
+        // シーンの開閉の途中でオブジェクトを解決しようとすると内部アサーションが出るため、
+        // 遷移が終わってからまとめて更新する
+        void ScheduleSceneObjectRefresh()
+        {
+            if (sceneRefreshQueued)
+            {
+                return;
+            }
+
+            sceneRefreshQueued = true;
+
+            EditorApplication.delayCall += () =>
+            {
+                sceneRefreshQueued = false;
+
+                if (this == null)
+                {
+                    return;
+                }
+
+                RefreshSceneObjects();
+            };
         }
 
         void Reset()

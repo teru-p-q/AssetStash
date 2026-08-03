@@ -34,6 +34,10 @@ namespace KuonLib.AssetStash.Properties
                 {
                     icon.image = GetMissingIcon()?.image as Texture2D;
                 }
+                else if (item.IsSceneObject)
+                {
+                    icon.image = GetSceneObjectIcon()?.image as Texture2D;
+                }
                 else
                 {
                     var tex = AssetDatabase.GetCachedIcon(AssetStashUtil.GuidToPath(item.Guid)) as Texture2D;
@@ -53,6 +57,7 @@ namespace KuonLib.AssetStash.Properties
         GUIContent GetFolderIcon() => EditorGUIUtility.IconContent("d_FolderFavorite Icon");
         GUIContent GetDefaultIcon() => EditorGUIUtility.IconContent("DefaultAsset Icon");
         GUIContent GetMissingIcon() => EditorGUIUtility.IconContent("console.warnicon.sml");
+        GUIContent GetSceneObjectIcon() => EditorGUIUtility.IconContent("GameObject Icon");
 
         static readonly Color MissingColor = new Color(0.85f, 0.45f, 0.4f);
 

@@ -35,8 +35,9 @@ namespace KuonLib.AssetStash
         readonly UndoHistory undoHistory = new();
         List<AssetData> editSnapshot;
 
-        // GUID -> 最後に表示したパス。アセットの移動 / 削除 / 復活の検出に使う
-        readonly Dictionary<string, string> resolvedPaths = new();
+        // 項目 ID -> 最後に表示した状態。アセットの移動 / 削除 / 復活の検出に使う
+        // （同じシーンの複数オブジェクトは GUID が重複するため、キーは ID にする）
+        readonly Dictionary<int, string> resolvedPaths = new();
 
         bool IsFiltering => !string.IsNullOrEmpty(searchText);
 
@@ -78,14 +79,21 @@ namespace KuonLib.AssetStash
                     continue;
                 }
 
-                var path = AssetStashUtil.GuidToPath(item.Guid);
                 var state = ResolveState(item);
 
-                if (!resolvedPaths.TryGetValue(item.Guid, out var previous) || previous != state)
+                if (!resolvedPaths.TryGetValue(item.ID, out var previous) || previous != state)
                 {
                     moved = true;
                 }
 
+                // シーン内オブジェクトの Guid はシーンを指すので、シーンアセット名で上書きしてはいけない
+                if (item.IsSceneObject)
+                {
+                    renamed |= RefreshSceneObjectName(item);
+                    continue;
+                }
+
+                var path = AssetStashUtil.GuidToPath(item.Guid);
                 if (string.IsNullOrEmpty(path))
                 {
                     continue;
@@ -130,7 +138,7 @@ namespace KuonLib.AssetStash
                     continue;
                 }
 
-                resolvedPaths[item.Guid] = ResolveState(item);
+                resolvedPaths[item.ID] = ResolveState(item);
             }
         }
 
@@ -138,6 +146,43 @@ namespace KuonLib.AssetStash
         static string ResolveState(AssetData item)
         {
             return AssetStashUtil.IsMissing(item) ? "" : AssetStashUtil.GuidToPath(item.Guid);
+        }
+
+        // シーンの開閉で解決できるかが変わるため、開いているときだけ名前を取り直す
+        static bool RefreshSceneObjectName(AssetData item)
+        {
+            var sceneObject = AssetStashUtil.ResolveSceneObject(item);
+            if (sceneObject == null || item.Name == sceneObject.name)
+            {
+                return false;
+            }
+
+            item.Name = sceneObject.name;
+            return true;
+        }
+
+        void RefreshSceneObjects()
+        {
+            if (assetsCache == null || stashTree == null || !assetsCache.Any(x => x.IsSceneObject))
+            {
+                return;
+            }
+
+            // 購読順に依存しないよう、参照し直す前に自分でキャッシュを捨てる
+            AssetStashUtil.ClearSceneObjectCache();
+
+            var renamed = false;
+            foreach (var item in assetsCache.Where(x => x.IsSceneObject))
+            {
+                renamed |= RefreshSceneObjectName(item);
+            }
+
+            if (renamed)
+            {
+                SaveStash(assetsCache);
+            }
+
+            RebuildTree(assetsCache);
         }
 
         void RebuildTree(List<AssetData> items, AssetData refreshItem = null)
@@ -186,6 +231,8 @@ namespace KuonLib.AssetStash
                 changed = true;
             }
 
+            changed |= AddSceneObjects();
+
             if (changed)
             {
                 undoHistory.Push(before);
@@ -194,6 +241,52 @@ namespace KuonLib.AssetStash
             }
 
             return changed;
+        }
+
+        bool AddSceneObjects()
+        {
+            var changed = false;
+
+            foreach (var go in Selection.gameObjects)
+            {
+                if (!Bookmark.CanBookmarkSceneObject(go))
+                {
+                    continue;
+                }
+
+                var info = Bookmark.CreateFromSceneObject(go, CurrentID + 1);
+                if (assetsCache.Any(x => x.IsSceneObject && x.GlobalId == info.GlobalId))
+                {
+                    continue;
+                }
+
+                CurrentID++;
+                InsertUnderSelection(info);
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        // 選択中の項目の直後（グループが選択されていればその配下）に差し込む
+        void InsertUnderSelection(AssetData info)
+        {
+            var parent = SelectedParent();
+
+            if (parent == null)
+            {
+                assetsCache.Add(info);
+                return;
+            }
+
+            info.ParentID = parent.IsGroup ? parent.ID : parent.ParentID;
+            assetsCache.Insert(assetsCache.FindIndex(x => x.ID == parent.ID) + 1, info);
+        }
+
+        AssetData SelectedParent()
+        {
+            var id = stashTree.SelectedIds.FirstOrDefault();
+            return stashTree.SelectedIds.Any() ? assetsCache.FirstOrDefault(x => x.ID == id) : null;
         }
 
         private void OnCreateGroupButton()
@@ -423,7 +516,12 @@ namespace KuonLib.AssetStash
             var displayName = Path.GetFileNameWithoutExtension(selectedItem.Name);
             var path = AssetStashUtil.GetPath(selectedItem);
 
-            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing && !AssetStashUtil.IsFolder(selectedItem))
+            if (selectedItem.IsSceneObject && !isMissing)
+            {
+                menu.AddItem(new GUIContent($"{displayName} を選択"), false, () => AssetStashUtil.SelectSceneObject(selectedItem));
+                menu.AddSeparator("");
+            }
+            else if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing && !AssetStashUtil.IsFolder(selectedItem))
             {
                 menu.AddItem(new GUIContent($"{displayName} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
 
@@ -441,7 +539,7 @@ namespace KuonLib.AssetStash
             }
             menu.AddItem(new GUIContent("メモを編集"), false, () => stashTree.BeginMemoEdit(selectedItem.ID));
 
-            if (!selectedItem.IsGroup && !isMissing)
+            if (!selectedItem.IsGroup && !selectedItem.IsSceneObject && !isMissing)
             {
                 menu.AddSeparator("");
 
@@ -459,11 +557,19 @@ namespace KuonLib.AssetStash
 
                 if (!string.IsNullOrEmpty(path))
                 {
-                    menu.AddItem(new GUIContent("パスをコピー"), false, () => AssetStashUtil.CopyToClipboard(path));
+                    var pathLabel = selectedItem.IsSceneObject ? "シーンのパスをコピー" : "パスをコピー";
+                    menu.AddItem(new GUIContent(pathLabel), false, () => AssetStashUtil.CopyToClipboard(path));
                 }
 
+                if (selectedItem.IsSceneObject)
+                {
+                    if (!string.IsNullOrEmpty(selectedItem.GlobalId))
+                    {
+                        menu.AddItem(new GUIContent("GlobalObjectId をコピー"), false, () => AssetStashUtil.CopyToClipboard(selectedItem.GlobalId));
+                    }
+                }
                 // 欠損項目でも GUID は復旧の手掛かりになるためコピーできるようにする
-                if (!selectedItem.IsExternal && !string.IsNullOrEmpty(selectedItem.Guid))
+                else if (!selectedItem.IsExternal && !string.IsNullOrEmpty(selectedItem.Guid))
                 {
                     menu.AddItem(new GUIContent("GUID をコピー"), false, () => AssetStashUtil.CopyToClipboard(selectedItem.Guid));
                 }
@@ -491,9 +597,10 @@ namespace KuonLib.AssetStash
 
             var alive = selectedItems.Where(x => !x.IsGroup && !AssetStashUtil.IsMissing(x)).ToList();
 
-            // シーンは開くと現在のシーンを置き換えるため、一括では対象から外す
+            // シーンは開くと現在のシーンを置き換えるため、一括では対象から外す。
+            // シーン内オブジェクトも「選択」が一度に 1 つしか成立しないため除く
             var openable = alive
-                .Where(x => !x.IsExternal && !AssetStashUtil.IsFolder(x) && !AssetStashUtil.IsScene(x))
+                .Where(x => !x.IsExternal && !x.IsSceneObject && !AssetStashUtil.IsFolder(x) && !AssetStashUtil.IsScene(x))
                 .ToList();
 
             if (openable.Count > 0)
@@ -508,7 +615,7 @@ namespace KuonLib.AssetStash
                 menu.AddSeparator("");
             }
 
-            var pingable = alive.Where(x => !x.IsExternal).ToList();
+            var pingable = alive.Where(x => !x.IsExternal && !x.IsSceneObject).ToList();
             if (pingable.Count > 0)
             {
                 menu.AddItem(new GUIContent($"{pingable.Count} 件の場所を示す"), false, () => AssetStashUtil.PingAssets(pingable));
@@ -768,11 +875,14 @@ namespace KuonLib.AssetStash
             var memo = item.Memo ?? "";
             var path = item.IsGroup ? "" : (item.IsExternal ? name : AssetStashUtil.GuidToPath(item.Guid));
 
+            // シーン内オブジェクトは GUID 列に GlobalObjectId を出しているので、そちらも対象にする
+            var id = item.IsSceneObject ? item.GlobalId : item.Guid;
+
             foreach (var keyword in keywords)
             {
                 if (!Contains(name, keyword)
                     && !Contains(path, keyword)
-                    && !Contains(item.Guid, keyword)
+                    && !Contains(id, keyword)
                     && !Contains(memo, keyword))
                 {
                     return false;
@@ -858,6 +968,17 @@ namespace KuonLib.AssetStash
             {
                 if (m.IsGroup || AssetStashUtil.IsMissing(m))
                 {
+                    continue;
+                }
+
+                // シーン内オブジェクトはシーンアセットではなく、解決した GameObject を渡す
+                if (m.IsSceneObject)
+                {
+                    var sceneObject = AssetStashUtil.ResolveSceneObject(m);
+                    if (sceneObject != null)
+                    {
+                        objectRefs.Add(sceneObject);
+                    }
                     continue;
                 }
 
@@ -974,7 +1095,9 @@ namespace KuonLib.AssetStash
 
             var dragged = draggedIds;
             bool hasExternalDrop = DragAndDrop.paths != null && DragAndDrop.paths.Length > 0;
-            if ((dragged == null || dragged.Length == 0) && !hasExternalDrop)
+            var sceneObjects = GetDroppedSceneObjects();
+
+            if ((dragged == null || dragged.Length == 0) && !hasExternalDrop && sceneObjects.Length == 0)
             {
                 return DragVisualMode.Rejected;
             }
@@ -987,10 +1110,82 @@ namespace KuonLib.AssetStash
             {
                 OnDrop(args, DragAndDrop.paths);
             }
+            else
+            {
+                OnDrop(args, sceneObjects);
+            }
 
             DragAndDrop.AcceptDrag();
 
             return DragVisualMode.Move;
+        }
+
+        // Hierarchy からのドラッグは paths を持たず objectReferences だけが入る
+        static GameObject[] GetDroppedSceneObjects()
+        {
+            if (DragAndDrop.objectReferences == null)
+            {
+                return new GameObject[0];
+            }
+
+            return DragAndDrop.objectReferences
+                .OfType<GameObject>()
+                .Where(Bookmark.CanBookmarkSceneObject)
+                .ToArray();
+        }
+
+        void OnDrop(HandleDragAndDropArgs args, GameObject[] sceneObjects)
+        {
+            if (sceneObjects.Length == 0)
+            {
+                return;
+            }
+
+            var before = UndoHistory.CreateSnapshot(assetsCache);
+            var targetItem = stashTree.GetItemDataForIndex(args.insertAtIndex);
+            var added = new List<AssetData>();
+
+            foreach (var go in sceneObjects)
+            {
+                var info = Bookmark.CreateFromSceneObject(go, CurrentID + 1);
+                if (assetsCache.Any(x => x.IsSceneObject && x.GlobalId == info.GlobalId))
+                {
+                    continue;
+                }
+
+                CurrentID++;
+                added.Add(info);
+            }
+
+            if (added.Count == 0)
+            {
+                return;
+            }
+
+            var parent = args.target as AssetData;
+            var parentId = parent == null ? args.parentId
+                : parent.IsGroup ? parent.ID
+                : parent.ParentID;
+
+            foreach (var info in added)
+            {
+                info.ParentID = parentId;
+            }
+
+            var anchor = parent != null && parent.IsGroup ? null : targetItem;
+            var insertIndex = anchor == null ? assetsCache.Count : assetsCache.FindIndex(x => x.ID == anchor.ID);
+            if (insertIndex < 0)
+            {
+                insertIndex = assetsCache.Count;
+            }
+
+            assetsCache.InsertRange(insertIndex, added);
+
+            undoHistory.Push(before);
+            SaveStash(assetsCache);
+            RebuildTree(assetsCache);
+
+            stashTree.SetSelectionByIds(added.Select(x => x.ID).ToList());
         }
 
         void OnDrop(HandleDragAndDropArgs args, int[] dragged)
