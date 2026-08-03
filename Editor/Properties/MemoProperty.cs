@@ -90,14 +90,7 @@ namespace KuonLib.AssetStash.Properties
                 return;
             }
 
-            if (me.button == (int)MouseButton.RightMouse)
-            {
-                var menu = new GenericMenu();
-                menu.AddItem(new GUIContent("Edit Memo"), false, () => BeginEdit(item.ID));
-                menu.ShowAsContext();
-            }
-
-            if (me.clickCount == 2)
+            if (me.button == (int)MouseButton.LeftMouse && me.clickCount == 2)
             {
                 me.StopImmediatePropagation();
 

@@ -490,10 +490,10 @@ namespace KuonLib.AssetStash
                         stashTree.SetSelectionById(selectedItem.ID);
                     }
 
-                    Vector2 mousePos = me.mousePosition;
-                    Rect menuRect = new Rect(mousePos, Vector2.zero);
-
-                    EditorApplication.delayCall += () => ShowContextMenu(selectedItem, selectedItems, menuRect);
+                    // DropDown の座標は「呼び出し時点でアクティブなウィンドウ」を基準に解決されるため、
+                    // delayCall で遅らせるとイベント発生時の基準を失い、表示位置がずれる
+                    me.StopImmediatePropagation();
+                    ShowContextMenu(selectedItem, selectedItems, new Rect(me.mousePosition, Vector2.zero));
                 }
             });
         }
