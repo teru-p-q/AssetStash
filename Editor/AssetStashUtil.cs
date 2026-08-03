@@ -53,9 +53,41 @@ namespace KuonLib.AssetStash
             }
         }
 
+        public static void OpenSceneAdditive(AssetData data)
+        {
+            if (IsMissing(data) || !IsScene(data))
+            {
+                return;
+            }
+
+            EditorSceneManager.OpenScene(GuidToPath(data.Guid), OpenSceneMode.Additive);
+        }
+
         public static string GuidToPath(string guid)
         {
             return AssetDatabase.GUIDToAssetPath(guid);
+        }
+
+        // External はパスを Name に保持している
+        public static string GetPath(AssetData data)
+        {
+            if (data == null || data.IsGroup)
+            {
+                return "";
+            }
+
+            return data.IsExternal ? data.Name : GuidToPath(data.Guid);
+        }
+
+        public static bool IsFolder(AssetData data)
+        {
+            var path = GetPath(data);
+            return !string.IsNullOrEmpty(path) && (AssetDatabase.IsValidFolder(path) || Directory.Exists(path));
+        }
+
+        public static void CopyToClipboard(string text)
+        {
+            EditorGUIUtility.systemCopyBuffer = text ?? "";
         }
 
         public static bool IsScene(AssetData data) => Path.GetExtension(GuidToPath(data.Guid)).Equals(".unity");
@@ -93,7 +125,13 @@ namespace KuonLib.AssetStash
 
         public static void OpenFolder(AssetData data)
         {
-            EditorUtility.RevealInFinder(data.Name);
+            var path = GetPath(data);
+            if (IsMissing(data) || string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            EditorUtility.RevealInFinder(path);
         }
 
         public static void SetDefaultToggleStyle(Toggle toggle)

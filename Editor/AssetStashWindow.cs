@@ -332,20 +332,18 @@ namespace KuonLib.AssetStash
             }
 
             var isMissing = AssetStashUtil.IsMissing(selectedItem);
+            var displayName = Path.GetFileNameWithoutExtension(selectedItem.Name);
+            var path = AssetStashUtil.GetPath(selectedItem);
 
-            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing)
+            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing && !AssetStashUtil.IsFolder(selectedItem))
             {
-                var path = AssetStashUtil.GuidToPath(selectedItem.Guid);
-                if (!AssetDatabase.IsValidFolder(path))
+                menu.AddItem(new GUIContent($"{displayName} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
+
+                if (AssetStashUtil.IsScene(selectedItem))
                 {
-                    menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を開く"), false, () => AssetStashUtil.OpenAsset(selectedItem));
-                    menu.AddSeparator("");
+                    menu.AddItem(new GUIContent($"{displayName} を加算で開く"), false, () => AssetStashUtil.OpenSceneAdditive(selectedItem));
                 }
-            }
 
-            if (selectedItem.IsExternal && !isMissing)
-            {
-                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の場所をエクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
                 menu.AddSeparator("");
             }
 
@@ -354,21 +352,44 @@ namespace KuonLib.AssetStash
                 menu.AddItem(new GUIContent("グループ名を編集"), false, () => stashTree.BeginNameEdit(selectedItem.ID));
             }
             menu.AddItem(new GUIContent("メモを編集"), false, () => stashTree.BeginMemoEdit(selectedItem.ID));
+
+            if (!selectedItem.IsGroup && !isMissing)
+            {
+                menu.AddSeparator("");
+
+                if (!selectedItem.IsExternal)
+                {
+                    menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
+                }
+
+                menu.AddItem(new GUIContent("エクスプローラーで開く"), false, () => AssetStashUtil.OpenFolder(selectedItem));
+            }
+
+            if (!selectedItem.IsGroup && (!string.IsNullOrEmpty(path) || !string.IsNullOrEmpty(selectedItem.Guid)))
+            {
+                menu.AddSeparator("");
+
+                if (!string.IsNullOrEmpty(path))
+                {
+                    menu.AddItem(new GUIContent("パスをコピー"), false, () => AssetStashUtil.CopyToClipboard(path));
+                }
+
+                // 欠損項目でも GUID は復旧の手掛かりになるためコピーできるようにする
+                if (!selectedItem.IsExternal && !string.IsNullOrEmpty(selectedItem.Guid))
+                {
+                    menu.AddItem(new GUIContent("GUID をコピー"), false, () => AssetStashUtil.CopyToClipboard(selectedItem.Guid));
+                }
+            }
+
             menu.AddSeparator("");
 
             if (selectedItem.IsGroup)
             {
-                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} を削除"), false, () => Delete(selectedItem));
+                menu.AddItem(new GUIContent($"{displayName} を削除"), false, () => Delete(selectedItem));
             }
             else
             {
-                menu.AddItem(new GUIContent($"{Path.GetFileNameWithoutExtension(selectedItem.Name)} の登録を解除"), false, () => Delete(selectedItem));
-            }
-
-            if (!selectedItem.IsGroup && !selectedItem.IsExternal && !isMissing)
-            {
-                menu.AddSeparator("");
-                menu.AddItem(new GUIContent("アセットの場所を示す"), false, () => AssetStashUtil.PingAsset(selectedItem));
+                menu.AddItem(new GUIContent($"{displayName} の登録を解除"), false, () => Delete(selectedItem));
             }
 
             AddUndoMenuItem(menu);
@@ -380,13 +401,55 @@ namespace KuonLib.AssetStash
         {
             var menu = new GenericMenu();
 
-            var openable = selectedItems
-                .Where(x => !x.IsGroup && !x.IsExternal && !AssetStashUtil.IsMissing(x))
+            var alive = selectedItems.Where(x => !x.IsGroup && !AssetStashUtil.IsMissing(x)).ToList();
+
+            // シーンは開くと現在のシーンを置き換えるため、一括では対象から外す
+            var openable = alive
+                .Where(x => !x.IsExternal && !AssetStashUtil.IsFolder(x) && !AssetStashUtil.IsScene(x))
                 .ToList();
 
             if (openable.Count > 0)
             {
-                menu.AddItem(new GUIContent($"{openable.Count} 件の場所を示す"), false, () => AssetStashUtil.PingAssets(openable));
+                menu.AddItem(new GUIContent($"{openable.Count} 件を開く"), false, () =>
+                {
+                    foreach (var item in openable)
+                    {
+                        AssetStashUtil.OpenAsset(item);
+                    }
+                });
+                menu.AddSeparator("");
+            }
+
+            var pingable = alive.Where(x => !x.IsExternal).ToList();
+            if (pingable.Count > 0)
+            {
+                menu.AddItem(new GUIContent($"{pingable.Count} 件の場所を示す"), false, () => AssetStashUtil.PingAssets(pingable));
+            }
+
+            var paths = alive.Select(AssetStashUtil.GetPath).Where(x => !string.IsNullOrEmpty(x)).ToList();
+            var guids = selectedItems
+                .Where(x => !x.IsGroup && !x.IsExternal && !string.IsNullOrEmpty(x.Guid))
+                .Select(x => x.Guid)
+                .ToList();
+
+            if (paths.Count > 0 || guids.Count > 0)
+            {
+                menu.AddSeparator("");
+
+                if (paths.Count > 0)
+                {
+                    menu.AddItem(new GUIContent($"{paths.Count} 件のパスをコピー"), false, () => AssetStashUtil.CopyToClipboard(string.Join("\n", paths)));
+                }
+
+                if (guids.Count > 0)
+                {
+                    menu.AddItem(new GUIContent($"{guids.Count} 件の GUID をコピー"), false, () => AssetStashUtil.CopyToClipboard(string.Join("\n", guids)));
+                }
+            }
+
+            // グループだけを選択した場合はここまで項目が無く、先頭がセパレータになってしまう
+            if (openable.Count > 0 || pingable.Count > 0 || paths.Count > 0 || guids.Count > 0)
+            {
                 menu.AddSeparator("");
             }
 
