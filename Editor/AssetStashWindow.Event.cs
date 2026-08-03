@@ -5,8 +5,14 @@ using UnityEngine.SceneManagement;
 
 namespace KuonLib.AssetStash
 {
-    public partial class AssetStashWindow
+    public partial class AssetStashWindow : IHasCustomMenu
     {
+        // ツールバーを増やさずに済むよう、エクスポート / インポートはウィンドウのメニューに置く
+        public void AddItemsToMenu(GenericMenu menu)
+        {
+            menu.AddItem(new GUIContent("エクスポート..."), false, OnExport);
+            menu.AddItem(new GUIContent("インポート..."), false, OnImport);
+        }
 
         [MenuItem("Window/AssetStashWindow")]
         public static void ShowWindow()

@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - アセットのリネーム / 移動 / 削除に追従してウィンドウの表示を自動更新（AssetPostprocessor）
 - シーン内 GameObject のブックマークに対応（GlobalObjectId で識別。Hierarchy からのドラッグと「お気に入り追加」で登録）
 - 右クリック > 選択 で、必要ならシーンを開いたうえでオブジェクトを選択
+- JSON ファイルへのエクスポート / インポートに対応（ウィンドウのメニューから実行。追加 / 置き換えを選択可能）
 
 ### Changed
 - 「エクスプローラーで開く」を Assets 内のアセットにも表示（従来は Assets 外のファイルのみ）

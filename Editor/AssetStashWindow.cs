@@ -597,7 +597,7 @@ namespace KuonLib.AssetStash
 
             var alive = selectedItems.Where(x => !x.IsGroup && !AssetStashUtil.IsMissing(x)).ToList();
 
-            // シーンは開くと現在のシーンを置き換えるため、一括では対象から外す。
+            // シーンは開くと現在のシーンを置換するため、一括では対象から外す。
             // シーン内オブジェクトも「選択」が一度に 1 つしか成立しないため除く
             var openable = alive
                 .Where(x => !x.IsExternal && !x.IsSceneObject && !AssetStashUtil.IsFolder(x) && !AssetStashUtil.IsScene(x))
@@ -723,6 +723,102 @@ namespace KuonLib.AssetStash
                 return new TreeViewItemData<AssetData>(groupData.ID, groupData, childItems);
             }).ToList();
         }
+
+        #region ExportImport
+        void OnExport()
+        {
+            var path = EditorUtility.SaveFilePanel(
+                "AssetStash をエクスポート",
+                "",
+                $"AssetStash_{Application.productName}",
+                "json");
+
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            try
+            {
+                File.WriteAllText(path, Bookmark.Serialize(isPathEnabled, isGUIDEnabled, isMemoVisible, assetsCache, true));
+                ShowNotification(new GUIContent($"{assetsCache.Count} 件をエクスポートしました"));
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                EditorUtility.DisplayDialog("エクスポート", $"書き出しに失敗しました。\n\n{e.Message}", "OK");
+            }
+        }
+
+        void OnImport()
+        {
+            var path = EditorUtility.OpenFilePanel("AssetStash をインポート", "", "json");
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            AssetJson json;
+            try
+            {
+                json = Bookmark.Deserialize(File.ReadAllText(path));
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                EditorUtility.DisplayDialog("インポート", $"読み込みに失敗しました。\n\n{e.Message}", "OK");
+                return;
+            }
+
+            if (json == null || json.Stash == null || json.Stash.Count == 0)
+            {
+                EditorUtility.DisplayDialog("インポート", "読み込める項目がありませんでした。", "OK");
+                return;
+            }
+
+            if (json.Version > AssetJson.CurrentVersion)
+            {
+                EditorUtility.DisplayDialog(
+                    "インポート",
+                    $"このファイルは新しい形式です (version {json.Version})。\nAssetStash を更新してください。",
+                    "OK");
+                return;
+            }
+
+            var choice = EditorUtility.DisplayDialogComplex(
+                "インポート",
+                $"{json.Stash.Count} 件を読み込みます。\n\n" +
+                "「追加」は今の内容を残したまま、重複を除いて取り込みます。\n" +
+                "「置換」は今の内容をすべて破棄します。\n\n" +
+                "どちらも Ctrl+Z で元に戻せます。",
+                "追加",
+                "キャンセル",
+                "置換");
+
+            if (choice == 1)
+            {
+                return;
+            }
+
+            var before = UndoHistory.CreateSnapshot(assetsCache);
+            ClearSearch();
+
+            if (choice == 0)
+            {
+                assetsCache = StashTransfer.Merge(assetsCache, json.Stash, ref CurrentID, out var added, out var skipped);
+                ShowNotification(new GUIContent($"{added} 件を追加（重複 {skipped} 件をスキップ）"));
+            }
+            else
+            {
+                assetsCache = StashTransfer.Replace(json.Stash, ref CurrentID);
+                ShowNotification(new GUIContent($"{assetsCache.Count} 件を読み込みました"));
+            }
+
+            undoHistory.Push(before);
+            SaveStash(assetsCache);
+            RebuildTree(assetsCache);
+        }
+        #endregion
 
         #region Missing
         void UpdateCleanupButton()
