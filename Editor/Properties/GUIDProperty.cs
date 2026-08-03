@@ -17,7 +17,8 @@ namespace KuonLib.AssetStash.Properties
                 {
                     return;
                 }
-                e.Q<Label>().text = item.Guid;
+                // シーン内オブジェクトはシーンの GUID より GlobalObjectId のほうが識別に役立つ
+                e.Q<Label>().text = item.IsSceneObject ? item.GlobalId : item.Guid;
             };
         }
     }

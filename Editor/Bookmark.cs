@@ -29,6 +29,16 @@ namespace KuonLib.AssetStash
             // Name は GUID から取得しなおす
             foreach (var assetData in assetsJson.Stash)
             {
+                if (assetData.IsSceneObject)
+                {
+                    var sceneObject = AssetStashUtil.ResolveSceneObject(assetData);
+                    if (sceneObject != null)
+                    {
+                        assetData.Name = sceneObject.name;
+                    }
+                    continue;
+                }
+
                 if (assetData.Guid != null)
                 {
                     var path = AssetDatabase.GUIDToAssetPath(assetData.Guid);
@@ -50,14 +60,26 @@ namespace KuonLib.AssetStash
 
         public static void SavePrefs(bool isPathEnabled, bool isGUIDEnabled, bool isMemoEnabled, List<AssetData> items)
         {
-            var prefsJson = JsonUtility.ToJson(
+            EditorPrefs.SetString(PrefsKey, Serialize(isPathEnabled, isGUIDEnabled, isMemoEnabled, items, false));
+        }
+
+        // 書き出したファイルは差分を見られるよう整形する
+        public static string Serialize(bool isPathEnabled, bool isGUIDEnabled, bool isMemoEnabled, List<AssetData> items, bool prettyPrint)
+        {
+            return JsonUtility.ToJson(
                 new AssetJson {
+                    Version = AssetJson.CurrentVersion,
                     IsPathEnabled = isPathEnabled,
                     IsGUIDEnabled = isGUIDEnabled,
                     IsMemoEnabled = isMemoEnabled,
                     Stash = items,
-                });
-            EditorPrefs.SetString(PrefsKey, prefsJson);
+                },
+                prettyPrint);
+        }
+
+        public static AssetJson Deserialize(string json)
+        {
+            return JsonUtility.FromJson<AssetJson>(json);
         }
 
         public static AssetData CreateFromPath(string path, int newID)
@@ -90,6 +112,29 @@ namespace KuonLib.AssetStash
                     IsExpanded = false,
                 };
             }
+        }
+
+        // シーンに保存されていないオブジェクト（未保存シーン / Prefab ステージ）は識別子が安定しないため対象外
+        public static bool CanBookmarkSceneObject(GameObject go)
+        {
+            return go != null && go.scene.IsValid() && !string.IsNullOrEmpty(go.scene.path);
+        }
+
+        public static AssetData CreateFromSceneObject(GameObject go, int newID)
+        {
+            var globalId = GlobalObjectId.GetGlobalObjectIdSlow(go).ToString();
+
+            return new AssetData()
+            {
+                Guid = AssetDatabase.AssetPathToGUID(go.scene.path),
+                ID = newID,
+                Name = go.name,
+                Memo = "",
+                Type = AssetData.SceneObjectType,
+                ParentID = -1,
+                IsExpanded = false,
+                GlobalId = globalId,
+            };
         }
 
         public static AssetData Add(List<AssetData> items, string assetGuid, AssetData parentAsset, int newID)

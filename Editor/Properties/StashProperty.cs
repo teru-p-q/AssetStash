@@ -65,6 +65,7 @@ namespace KuonLib.AssetStash.Properties
         protected void BeginInlineEdit(ref int editId, int id)
         {
             editId = id;
+            stashTree.NotifyItemEditBegin();
             stashTree.Rebuild();
             stashTree.MarkDirtyRepaint();
         }
@@ -74,12 +75,15 @@ namespace KuonLib.AssetStash.Properties
             try
             {
                 var tf = stashTree.FindTextField(editingElement);
-                var parent = tf.parent;
-                if (parent != null)
+                if (tf != null)
                 {
-                    restoreLabel?.Invoke(parent);
+                    var parent = tf.parent;
+                    if (parent != null)
+                    {
+                        restoreLabel?.Invoke(parent);
+                    }
+                    tf.RemoveFromHierarchy();
                 }
-                tf.RemoveFromHierarchy();
             }
             catch (Exception ex)
             {

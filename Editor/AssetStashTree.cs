@@ -1,6 +1,7 @@
 ﻿using KuonLib.AssetStash.Properties;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine.UIElements;
 
 namespace KuonLib.AssetStash
@@ -52,6 +53,24 @@ namespace KuonLib.AssetStash
             remove => onChanged -= value;
         }
 
+        event Action onItemEditBegin;
+        public event Action OnItemEditBegin
+        {
+            add => onItemEditBegin += value;
+            remove => onItemEditBegin -= value;
+        }
+
+        event Action onItemEdited;
+        public event Action OnItemEdited
+        {
+            add => onItemEdited += value;
+            remove => onItemEdited -= value;
+        }
+
+        public void NotifyItemEditBegin() => onItemEditBegin?.Invoke();
+
+        public void NotifyItemEdited() => onItemEdited?.Invoke();
+
         public AssetStashTree(MultiColumnTreeView multiColumnTreeView, Toggle path, Toggle guid, Toggle memo)
         {
             treeView = multiColumnTreeView;
@@ -60,6 +79,7 @@ namespace KuonLib.AssetStash
             treeView.virtualizationMethod = CollectionVirtualizationMethod.FixedHeight;
             treeView.SetRootItems(treeItems);
             treeView.reorderable = true;
+            treeView.selectionType = SelectionType.Multiple;
 
             NameProperty = new(this);
             NameProperty.Create(NameColumn, null, true);
@@ -97,13 +117,16 @@ namespace KuonLib.AssetStash
             treeView.SetRootItems(treeItems);
         }
 
+        // フィルタ表示中はヒットした項目を隠さないよう、保存された展開状態を無視して全展開する
+        public bool ForceExpandAll { get; set; }
+
         public void Rebuild()
         {
             treeView.Rebuild();
 
             foreach (var item in treeItems)
             {
-                if (item.data.IsExpanded)
+                if (ForceExpandAll || item.data.IsExpanded)
                 {
                     treeView.ExpandItem(item.data.ID);
                 }
@@ -118,6 +141,7 @@ namespace KuonLib.AssetStash
         public void Focus() => treeView.Focus();
 
         public AssetData SelectedItem => (AssetData)treeView.selectedItem;
+        public IEnumerable<AssetData> SelectedItems => treeView.selectedItems.OfType<AssetData>();
         public IEnumerable<int> SelectedIds => treeView.selectedIds;
         public int SelectedIndex => treeView.selectedIndex;
 
@@ -131,6 +155,23 @@ namespace KuonLib.AssetStash
 
         public AssetData GetItemDataForIndex(int index) => treeView.GetItemDataForIndex<AssetData>(index);
         public void SetSelectionById(int id) => treeView.SetSelectionById(id);
+        public void SetSelectionByIds(IEnumerable<int> ids)
+        {
+            var isFirst = true;
+
+            foreach (var id in ids)
+            {
+                if (isFirst)
+                {
+                    treeView.SetSelectionById(id);
+                    isFirst = false;
+                }
+                else
+                {
+                    treeView.AddToSelectionById(id);
+                }
+            }
+        }
 
         public TextField FindTextField(VisualElement ve) => ve.Query<TextField>("InlineEdit");
     }

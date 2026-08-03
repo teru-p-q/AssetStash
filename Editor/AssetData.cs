@@ -9,7 +9,9 @@ namespace KuonLib.AssetStash
     {
         public const string GroupType = "Group";
         public const string ExternalType = "External";
+        public const string SceneObjectType = "SceneObject";
 
+        // SceneObject の場合、Guid は所属シーンのアセット GUID、GlobalId は GlobalObjectId の文字列表現
         [SerializeField] public string Guid;
         [SerializeField] public int ID;
         [SerializeField] public string Name;
@@ -17,9 +19,11 @@ namespace KuonLib.AssetStash
         [SerializeField] public string Type;
         [SerializeField] public int ParentID;
         [SerializeField] public bool IsExpanded;
+        [SerializeField] public string GlobalId;
 
         public bool IsGroup => Type == GroupType;
         public bool IsExternal => Type == ExternalType;
+        public bool IsSceneObject => Type == SceneObjectType;
 
         public object Clone()
         {
@@ -32,6 +36,7 @@ namespace KuonLib.AssetStash
                 Type = Type,
                 ParentID = ParentID,
                 IsExpanded = IsExpanded,
+                GlobalId = GlobalId,
             };
         }
     }
