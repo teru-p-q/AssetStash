@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 複数選択時の右クリックメニューに「選択中の n 件を削除」「n 件の場所を示す」を追加
 - 右クリックメニューに「パスをコピー」「GUID をコピー」「エクスプローラーで開く」「加算で開く」を追加
 - 複数選択時の右クリックメニューに「n 件を開く」「n 件のパス / GUID をコピー」を追加
+- アセットのリネーム / 移動 / 削除に追従してウィンドウの表示を自動更新（AssetPostprocessor）
 
 ### Changed
 - 「エクスプローラーで開く」を Assets 内のアセットにも表示（従来は Assets 外のファイルのみ）

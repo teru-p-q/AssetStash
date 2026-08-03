@@ -32,6 +32,9 @@ namespace KuonLib.AssetStash
         readonly UndoHistory undoHistory = new();
         List<AssetData> editSnapshot;
 
+        // GUID -> 最後に表示したパス。アセットの移動 / 削除 / 復活の検出に使う
+        readonly Dictionary<string, string> resolvedPaths = new();
+
         bool IsFiltering => !string.IsNullOrEmpty(searchText);
 
         void Reload()
@@ -47,9 +50,90 @@ namespace KuonLib.AssetStash
             RebuildTree(assetsCache);
         }
 
+        public static void RefreshOpenWindows()
+        {
+            foreach (var window in Resources.FindObjectsOfTypeAll<AssetStashWindow>())
+            {
+                window.RefreshFromAssetDatabase();
+            }
+        }
+
+        void RefreshFromAssetDatabase()
+        {
+            if (assetsCache == null || stashTree == null)
+            {
+                return;
+            }
+
+            var renamed = false;
+            var moved = false;
+
+            foreach (var item in assetsCache)
+            {
+                if (item.IsGroup || item.IsExternal || string.IsNullOrEmpty(item.Guid))
+                {
+                    continue;
+                }
+
+                var path = AssetStashUtil.GuidToPath(item.Guid);
+
+                if (!resolvedPaths.TryGetValue(item.Guid, out var previous) || previous != path)
+                {
+                    moved = true;
+                }
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                var asset = AssetDatabase.LoadMainAssetAtPath(path);
+                if (asset == null || item.Name == asset.name)
+                {
+                    continue;
+                }
+
+                item.Name = asset.name;
+                renamed = true;
+            }
+
+            if (!renamed && !moved)
+            {
+                return;
+            }
+
+            if (renamed)
+            {
+                SaveStash(assetsCache);
+            }
+
+            RebuildTree(assetsCache);
+        }
+
+        void CacheResolvedPaths(List<AssetData> items)
+        {
+            resolvedPaths.Clear();
+
+            if (items == null)
+            {
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                if (item.IsGroup || item.IsExternal || string.IsNullOrEmpty(item.Guid))
+                {
+                    continue;
+                }
+
+                resolvedPaths[item.Guid] = AssetStashUtil.GuidToPath(item.Guid);
+            }
+        }
+
         void RebuildTree(List<AssetData> items, AssetData refreshItem = null)
         {
             treeItems = BuildList(FilterAssets(items));
+            CacheResolvedPaths(items);
             UpdateCleanupButton();
 
             if (stashTree == null)
