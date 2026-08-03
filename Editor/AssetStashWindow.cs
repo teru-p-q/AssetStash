@@ -18,8 +18,11 @@ namespace KuonLib.AssetStash
         int CurrentID = 0;
         List<AssetData> assetsCache;
 
-        UnityEngine.Object[] cachedDragObjects = new UnityEngine.Object[0];
-        string[] cachedDragPaths = new string[0];
+        // ドラッグ情報は DragAndDrop の generic data に持たせる（ドラッグ単位で破棄されるため状態が残らない）
+        const string DraggedIdsKey = "AssetStash.DraggedIds";
+        const string DraggedObjectsKey = "AssetStash.DraggedObjects";
+        const string DraggedPathsKey = "AssetStash.DraggedPaths";
+
         bool isPathEnabled;
         bool isGUIDEnabled;
         bool isMemoVisible;
@@ -246,8 +249,6 @@ namespace KuonLib.AssetStash
             }
         }
 
-        int[] pendingDraggedIds = null;
-
         public void CreateBookmarkGUI()
         {
             var root = rootVisualElement;
@@ -314,13 +315,9 @@ namespace KuonLib.AssetStash
         void SetupDragAndDropHandlers()
         {
             stashTree.CanStartDrag += (args) => true;
-            stashTree.SetupDragAndDrop += args =>
-            {
-                pendingDraggedIds = args.selectedIds?.ToArray();
-                return SetupDragAndDrop(args, pendingDraggedIds);
-            };
-            stashTree.DragAndDropUpdate += args => DragAndDropUpdate(args, pendingDraggedIds);
-            stashTree.HandleDrop += args => HandleDrop(args, pendingDraggedIds);
+            stashTree.SetupDragAndDrop += args => SetupDragAndDrop(args, args.selectedIds?.ToArray());
+            stashTree.DragAndDropUpdate += args => DragAndDropUpdate(args, GetDraggedIds());
+            stashTree.HandleDrop += args => HandleDrop(args, GetDraggedIds());
         }
 
         void SetupTreeChangeHandlers()
@@ -891,12 +888,36 @@ namespace KuonLib.AssetStash
 
             DragAndDrop.objectReferences = objectRefs.ToArray();
             DragAndDrop.paths = paths.ToArray();
-            DragAndDrop.SetGenericData("PendingDataID", draggedIds[0]);
 
-            cachedDragObjects = objectRefs.ToArray();
-            cachedDragPaths = paths.ToArray();
+            var startArgs = new StartDragArgs("Dragging Assets", DragVisualMode.Copy);
 
-            return new StartDragArgs("Dragging Assets", DragVisualMode.Copy);
+            // ここで渡した値だけがドラッグ開始時の PrepareStartDrag を生き延びる。
+            // ドラッグ単位で保持されるため、中断した情報が次のドラッグに残らない
+            startArgs.SetGenericData(DraggedIdsKey, draggedIds);
+            startArgs.SetGenericData(DraggedObjectsKey, objectRefs.ToArray());
+            startArgs.SetGenericData(DraggedPathsKey, paths.ToArray());
+
+            return startArgs;
+        }
+
+        static int[] GetDraggedIds() => DragAndDrop.GetGenericData(DraggedIdsKey) as int[];
+
+        // ドラッグ中に objectReferences が落ちることがあるため、開始時の内容から復元する
+        static void RestoreDragData()
+        {
+            if (DragAndDrop.objectReferences != null && DragAndDrop.objectReferences.Length > 0)
+            {
+                return;
+            }
+
+            var objects = DragAndDrop.GetGenericData(DraggedObjectsKey) as UnityEngine.Object[];
+            if (objects == null || objects.Length == 0)
+            {
+                return;
+            }
+
+            DragAndDrop.objectReferences = objects;
+            DragAndDrop.paths = DragAndDrop.GetGenericData(DraggedPathsKey) as string[] ?? new string[0];
         }
 
         DragVisualMode DragAndDropUpdate(HandleDragAndDropArgs args, int[] draggedIds)
@@ -906,11 +927,7 @@ namespace KuonLib.AssetStash
                 return DragVisualMode.Rejected;
             }
 
-            if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
-            {
-                DragAndDrop.objectReferences = cachedDragObjects;
-                DragAndDrop.paths = cachedDragPaths;
-            }
+            RestoreDragData();
 
             var dragged = draggedIds;
             bool hasExternal = DragAndDrop.paths != null && DragAndDrop.paths.Length > 0;
@@ -946,11 +963,7 @@ namespace KuonLib.AssetStash
                 return DragVisualMode.Rejected;
             }
 
-            if (cachedDragObjects.Length > 0 && DragAndDrop.objectReferences.Length == 0)
-            {
-                DragAndDrop.objectReferences = cachedDragObjects;
-                DragAndDrop.paths = cachedDragPaths;
-            }
+            RestoreDragData();
 
             var dragged = draggedIds;
             bool hasExternalDrop = DragAndDrop.paths != null && DragAndDrop.paths.Length > 0;
@@ -967,10 +980,6 @@ namespace KuonLib.AssetStash
             {
                 OnDrop(args, DragAndDrop.paths);
             }
-            pendingDraggedIds = null;
-
-            cachedDragObjects = new UnityEngine.Object[0];
-            cachedDragPaths = new string[0];
 
             DragAndDrop.AcceptDrag();
 
