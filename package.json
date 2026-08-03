@@ -1,11 +1,14 @@
 {
   "name": "com.github.teru-p-q.assetstash",
-  "version": "0.1.6",
+  "version": "1.0.0",
   "displayName": "Asset Stash",
   "description": "A productivity tool that allows you to bookmark and quickly access frequently used assets, folders, and scene objects.",
   "unity": "6000.1",
+  "documentationUrl": "https://github.com/teru-p-q/AssetStash#readme",
+  "changelogUrl": "https://github.com/teru-p-q/AssetStash/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/teru-p-q/AssetStash/blob/main/LICENSE.md",
   "_upm": {
-    "changelog": "- Column widths and visibility are now saved and restored.\n- Columns can now be resized wider than the window (horizontal scrolling)."
+    "changelog": "- Added incremental search over name / path / GUID / memo.\n- Added scene GameObject bookmarks, identified by GlobalObjectId.\n- Added multi-selection for moving, deleting and dragging in bulk.\n- Added undo / redo and confirmation dialogs for destructive actions.\n- Added detection of missing bookmarks and a button to remove them at once.\n- Added JSON export / import from the window menu.\n- Bookmarks now follow asset renames, moves and deletions while the window is open.\n- Expanded the context menu (additive scene open, reveal in explorer, copy path / GUID)."
   },
   "author": {
     "name": "teru-p-q",
